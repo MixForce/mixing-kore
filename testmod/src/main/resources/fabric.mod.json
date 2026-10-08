@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "mixing-kore-testmod",
+  "version": "1.0.0",
+  "name": "MixingKore Test",
+  "license": "LGPL-3.0",
+  "environment": "client",
+  "entrypoints": {
+    "client": []
+  },
+  "depends": {
+    "fabricloader": ">=0.19.5",
+    "minecraft": "~26.3",
+    "mixing-kore": "*"
+  }
+}

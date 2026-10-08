@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "mixing-kore",
+  "version": "${version}",
+  "name": "MixingKore",
+  "description": "MixingKore",
+  "authors": ["MixForce"],
+  "license": "LGPL-3.0",
+  "environment": "*",
+  "depends": {
+    "fabricloader": ">=0.19.5",
+    "minecraft": "~26.3",
+    "java": ">=25"
+  }
+}
