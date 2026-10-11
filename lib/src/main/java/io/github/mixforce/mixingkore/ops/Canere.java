@@ -24,6 +24,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicLong;
 
 public final class Canere {
     private Canere() {}
@@ -162,6 +163,7 @@ public final class Canere {
             return out;
         }
         public Optimizer.Solution optimize() {
+            if (cfg == null) cfg = new Optimizer.Config();
             return Optimizer.explore(pool, is[0], tail(), leafs, cfg);
         }
         public List<Step> trace(Optimizer.Solution s) {
@@ -285,6 +287,11 @@ public final class Canere {
             public boolean beam = true, lns = true, bb = false, auto = false;
             public long seed = 42, budget = 0 /* Ns */, bbNodes = 2000000L, bbGap = 8;
             public Policy policy = Policy.VANILLA;
+            Config copy() {
+                Config c = new Config();
+                c.greedy = greedy; c.topK = topK; c.bWidth = bWidth; c.bbLeaves = bbLeaves; c.lStall = lStall; c.pIsm = pIsm; c.bLambda = bLambda; c.beam = beam; c.lns = lns; c.bb = bb; c.auto = auto; c.seed = seed; c.budget = budget; c.bbNodes = bbNodes; c.bbGap = bbGap; c.policy = policy;
+                return c;
+            }
             /** Just adjusts configurations */
             static void tune(Config cfg, int[] ss) {
                 if (!cfg.auto) return;
@@ -294,11 +301,9 @@ public final class Canere {
                 for (int i = 0; i < c.length; i++) if (i == 0 || c[i] != c[i - 1]) m++;
                 if (m <= 10) {
                     if (cfg.greedy < 8) cfg.greedy = 8;
-                    if (cfg.beam) cfg.beam = false;
-                    if (!cfg.lns) cfg.lns = true;
+                    cfg.beam = false; cfg.lns = true; // cfg.bb = true;
                 } else if (m > 40) {
-                    if (!cfg.lns) cfg.lns = true;
-                    if (!cfg.beam) cfg.beam = true;
+                    cfg.lns = true; cfg.beam = true;
                     if (cfg.greedy < 8) cfg.greedy = 8;
                     if (cfg.bWidth == 24) cfg.bWidth = 12;
                     if (cfg.lStall == 300) cfg.lStall = 600;
@@ -327,18 +332,19 @@ public final class Canere {
             System.arraycopy(prep.ids(), 0, all, 1, nm);
             String[] names = new String[nm + 1]; names[0] = ls[0];
             System.arraycopy(prep.names(), 0, names, 1, nm);
-            Config.tune(cfg, all);
+            Config tc = cfg.copy(); Config.tune(tc, all);
             long lb0 = new Floor(pool, cfg.policy.limit).compute(new WSet(all), pool.type(all[0]));
             if (lb0 < 0) return new Solution(null, null, false, 0, System.nanoTime() - t0, new Metrics(0, 0, 0, 0, 0, -1, -1, Double.NaN, false), "Infeasible.");
             Evaluator ev = new Evaluator(k);
             Ceiling ub = new Ceiling();
             long tGreedy, tBeam, tLns;
             int reports, dn;
-            int nw = cfg.pIsm > 0 ? Math.clamp(cfg.greedy, 1, cfg.pIsm) : Runtime.getRuntime().availableProcessors();
+            int nw = tc.pIsm > 0 ? Math.clamp(tc.greedy, 1, tc.pIsm) : Runtime.getRuntime().availableProcessors();
             if (all.length == 1) nw = 1;
-            int sW = Math.max(20, (int) (cfg.lStall / Math.sqrt(nw)));
-            long deadline = cfg.budget > 0 ? t0 + cfg.budget : 0;
+            int sW = Math.max(20, (int) (tc.lStall / Math.sqrt(nw)));
+            long deadline = tc.budget > 0 ? t0 + tc.budget : 0;
             WRes[] res = new WRes[nw];
+            String wn = null; AtomicLong sh = new AtomicLong(Long.MAX_VALUE);
             ExecutorService ex = Executors.newFixedThreadPool(nw, r0 -> {
                 Thread th = new Thread(r0, "mixing-optimizer");
                 th.setDaemon(true);
@@ -349,12 +355,12 @@ public final class Canere {
                 for (int wk = 0; wk < nw; wk++) {
                     final int w = wk;
                     Pool fp = pool.fork();
-                    fs[wk] = ex.submit(() -> res[w] = worker(fp, t, prep.ids(), names, cfg, w, sW, deadline));
+                    fs[wk] = ex.submit(() -> res[w] = worker(fp, t, prep.ids(), names, tc, w, sW, deadline, sh));
                 }
                 for (Future<?> f : fs) {
                     try { f.get(); }
                     catch (InterruptedException e) { Thread.currentThread().interrupt(); }
-                    catch (ExecutionException e) { e.getCause().printStackTrace(); }
+                    catch (ExecutionException e) { wn = String.valueOf(e.getCause()); e.getCause().printStackTrace(); }
                 }
             } finally { ex.shutdown(); }
             long wG = 0, wB = 0, wL = 0; int rep = 0, ok = 0;
@@ -368,18 +374,18 @@ public final class Canere {
             tGreedy = wG; tBeam = wB; tLns = wL; reports = rep; dn = ok;
             if (!ub.found()) {
                 Metrics st = new Metrics(tGreedy, tBeam, tLns, 0, reports, lb0, -1, Double.NaN, false);
-                return new Solution(null, null, false, dn, System.nanoTime() - t0, st, "All " + dn + " failed.");
+                return new Solution(null, null, false, dn, System.nanoTime() - t0, st, wn != null ? wn : "All " + dn + " failed.");
             }
             Height he = Height.of(pool, t, prep.ids());
             long lb = he.lb; // -1
-            boolean se = lb >= 0;
+            boolean se = lb >= 0 && pool.lex().pf && !he.risky;
             long al = se ? Math.max(0, ub.cost - lb) : Long.MIN_VALUE;
             double gap = se ? (ub.cost > 0 ? (double) al / ub.cost : 0.0) : (ub.cost > 0 ? (double) (ub.cost - lb0) / ub.cost : Double.NaN);
             boolean proven = se && ub.cost == lb;
             long tBb = 0;
-            if (se && !proven && nm >= 2 && cfg.bb && nm <= cfg.bbLeaves && al <= cfg.bbGap && (deadline == 0 || deadline - System.nanoTime() > (deadline - t0) / 4)) {
+            if (se && !proven && nm >= 2 && tc.bb && nm <= tc.bbLeaves && al <= tc.bbGap && (deadline == 0 || deadline - System.nanoTime() > (deadline - t0) / 4)) {
                 long tb0 = System.nanoTime();
-                proven = BranchBound.con(pool, k, ev, all, names, cfg.bbNodes, deadline, cfg.bLambda, ub);
+                proven = BranchBound.con(pool, k, ev, all, names, tc.bbNodes, deadline, tc.bLambda, ub);
                 tBb = System.nanoTime() - tb0;
                 if (proven) gap = 0.0;
                 else { al = Math.max(0, ub.cost - lb); gap = (double) al / ub.cost; }
@@ -387,14 +393,15 @@ public final class Canere {
             Metrics st = new Metrics(tGreedy, tBeam, tLns, tBb, reports, lb0, lb, gap, proven);
             return new Solution(ub.tr, ub.eval, true, dn, System.nanoTime() - t0, st, null);
         }
-        static WRes worker(Pool pool, int t, int[] mats, String[] names, Config cfg, int wk, int sW, long deadline) {
+        static WRes worker(Pool pool, int t, int[] mats, String[] names, Config cfg, int wk, int sW, long deadline, AtomicLong sh) {
             Vanilla k = new Vanilla(pool.lex(), pool, cfg.policy);
             Evaluator ev = new Evaluator(k);
             Floor fr = new Floor(pool, cfg.policy.limit);
             int[] a = new int[mats.length + 1]; a[0] = t;
             System.arraycopy(mats, 0, a, 1, mats.length);
             long q1 = cfg.budget > 0 ? deadline - cfg.budget * 3 / 4 : 0, q2 = cfg.budget > 0 ? deadline - cfg.budget / 2 : 0;
-            Ceiling ub = new Ceiling();
+            Ceiling ub = new Ceiling(); ub.ext = sh;
+            Eval sv = new Eval(2 * a.length - 1);
             long seed = cfg.seed ^ (wk + 1) * 0x9E3779B97F4A7C15L;
             long tg0 = System.nanoTime();
             for (int s = 0; s < cfg.greedy; s++) {
@@ -402,7 +409,7 @@ public final class Canere {
                 Greedy.GRes g = s == 0 ? Greedy.bkCon(pool, k, a) : Greedy.con(pool, k, a, Scorer.PRESETS[(s - 1 + wk) % Scorer.PRESETS.length], Math.max(1, cfg.topK), new Random(seed ^ s * 0x9E3779B97F4A7C15L));
                 if (!g.ok) continue;
                 Tr tr = new Tr(g.l, g.r, a, names);
-                Eval e = ev.evaluate(tr, null);
+                Eval e = ev.evaluate(tr, sv);
                 if (e.feasible) ub.report(tr, e);
             }
             long tG = System.nanoTime() - tg0;
@@ -412,7 +419,7 @@ public final class Canere {
             long tl0 = System.nanoTime();
             if (cfg.lns) Lns.con(pool, k, ev, fr, a, names, deadline, sW, seed ^ 0x5DEECE66DL, ub);
             long tL = System.nanoTime() - tl0;
-            return new WRes(ub.tr, tG, tB, tL, ub.version);
+            return new WRes(ub.tr, tG, tB, tL, ub.ver);
         }
 
         /** GRASP greedy */
@@ -438,9 +445,7 @@ public final class Canere {
                     return s;
                 }
             }
-            static GRes con(Pool pool, Vanilla k, int[] ss, Scorer sc, int topK, Random r) {
-                return con(pool, k, ss, ss.length, sc, topK, r, new Ctx());
-            }
+            static GRes con(Pool pool, Vanilla k, int[] ss, Scorer sc, int topK, Random r) { return con(pool, k, ss, ss.length, sc, topK, r, new Ctx()); }
             static GRes con(Pool pool, Vanilla k, int[] ss, int len, Scorer sc, int topK, Random r, Ctx g) {
                 if (topK < 1) topK = 1;
                 if (topK > 8) topK = 8;
@@ -474,8 +479,7 @@ public final class Canere {
                         pu = -1; pv = -1; pord = 0;
                         while (g.hs > 0) {
                             long key = pop(g);
-                            int seq = (int) key;
-                            int u = g.sqU[seq], v = g.sqV[seq];
+                            int seq = (int) key, u = g.sqU[seq], v = g.sqV[seq];
                             if (!livePair(ws, u, v)) continue;
                             k.probe(u, v, g.pb);
                             if (!g.pb.ok) continue;
@@ -487,8 +491,7 @@ public final class Canere {
                         int fi = 0;
                         while (g.hs > 0 && fi < topK) {
                             long key = pop(g);
-                            int seq = (int) key;
-                            int u = g.sqU[seq], v = g.sqV[seq];
+                            int seq = (int) key, u = g.sqU[seq], v = g.sqV[seq];
                             if (!livePair(ws, u, v)) continue;
                             g.pkU[fi] = u; g.pkV[fi] = v; g.pkO[fi] = (int) (key >>> 32);
                             fi++;
@@ -502,11 +505,9 @@ public final class Canere {
                     if (!g.pb.ok) continue;
                     int nid = k.commit(g.pb);
                     total += g.pb.cost;
-                    if (g.mN == g.mA.length) {
-                        g.mA = Arrays.copyOf(g.mA, g.mN * 2); g.mB = Arrays.copyOf(g.mB, g.mN * 2);
-                    }
+                    if (g.mN == g.mA.length) { g.mA = Arrays.copyOf(g.mA, g.mN * 2); g.mB = Arrays.copyOf(g.mB, g.mN * 2); }
                     g.mA[g.mN] = pu; g.mB[g.mN] = pv; g.mN++;
-                    int pp = RefSeq.find(ws, pu, -1), pq = RefSeq.find(ws, pv, pp);
+                    int pp = RefSeq.at(ws, pu, -1), pq = RefSeq.at(ws, pv, pp);
                     if (pp < 0 || pq < 0) return new GRes(null, null, false, ws.cnt, -1, ws);
                     if (pp < pq) ws.take(pp, pq, 0, nid); else ws.take(pq, pp, 1, nid);
                     if (livePair(ws, pu, pv)) pushRaw(g, pord, pu, pv);
@@ -644,28 +645,29 @@ public final class Canere {
                 return v[0];
             }
             static void sortCw(Pool pool, int[] ss, int[] idx, int len, int m) {
+                if (len < 2) return;
+                float[] cws = new float[len];
+                for (int i = 0; i < len; i++) cws[i] = bkCw(pool, ss[idx[i]]);
                 for (int i = 1; i < len; i++) {
-                    int x = idx[i];
-                    float cx = bkCw(pool, ss[x]);
-                    int tx = m == 1 ? pool.type(ss[x]) : 0;
-                    int j = i - 1;
+                    int x = idx[i]; float cx = cws[i];
+                    int tx = m == 1 ? pool.type(ss[x]) : 0, j = i - 1;
                     while (j >= 0) {
-                        int y = idx[j];
-                        float cy = bkCw(pool, ss[y]);
-                        if (m == 1 ? (pool.type(ss[y]) > tx || (pool.type(ss[y]) == tx && cy > cx)) : cy > cx) {
-                            idx[j + 1] = y; j--;
-                        } else break;
+                        int y = idx[j]; float cy = cws[j];
+                        if (m == 1 ? (pool.type(ss[y]) > tx || (pool.type(ss[y]) == tx && cy > cx)) : cy > cx) { idx[j + 1] = y; cws[j + 1] = cy; j--; }
+                        else break;
                     }
-                    idx[j + 1] = x;
+                    idx[j + 1] = x; cws[j + 1] = cx;
                 }
             }
             static void sortHeads(Pool pool, WSet ws, int[] heads, int len) {
+                if (len < 2) return;
+                float[] cws = new float[len];
+                for (int i = 0; i < len; i++) cws[i] = bkCw(pool, ws.liveV[ws.pos(heads[i])]);
                 for (int i = 1; i < len; i++) {
-                    int x = heads[i];
-                    float cx = bkCw(pool, ws.liveV[ws.pos(x)]);
+                    int x = heads[i]; float cx = cws[i];
                     int j = i - 1;
-                    while (j >= 0 && bkCw(pool, ws.liveV[ws.pos(heads[j])]) > cx) { heads[j + 1] = heads[j]; j--; }
-                    heads[j + 1] = x;
+                    while (j >= 0 && cws[j] > cx) { heads[j + 1] = heads[j]; cws[j + 1] = cws[j]; j--; }
+                    heads[j + 1] = x; cws[j + 1] = cx;
                 }
             }
         }
@@ -675,8 +677,9 @@ public final class Canere {
             static void con(Pool pool, Vanilla k, Evaluator ev, Floor fr, int[] ss, String[] names, int B, float lambda, long deadline, Ceiling ub) {
                 if (B < 1) B = 1;
                 final int type = pool.type(ss[0]);
+                Eval sv = new Eval(2 * ss.length - 1);
                 WSet w0 = new WSet(ss);
-                if (w0.cnt == 1) { Tr p = w0.trs(ss, names); ub.report(p, ev.evaluate(p, null)); return; }
+                if (w0.cnt == 1) { Tr p = w0.trs(ss, names); ub.report(p, ev.evaluate(p, sv)); return; }
                 WSet[] beam = {w0};
                 float[] cs = new float[B]; int[] cp = new int[B], ci = new int[B], cj = new int[B], cd = new int[B];
                 Mem tr = new Mem(1 << 13);
@@ -687,9 +690,10 @@ public final class Canere {
                     int fi = 0;
                     for (int pi = 0; pi < beam.length; pi++) {
                         WSet w = beam[pi];
-                        if (ub.found()) {
+                        long ln = ub.bn();
+                        if (ln < Long.MAX_VALUE) {
                             long lb = fr.compute(w, type);
-                            if (lb < 0 || w.cost + lb >= ub.cost) continue;
+                            if (lb < 0 || w.cost + lb >= ln) continue;
                         }
                         if (fi == B) {
                             int mp = Integer.MAX_VALUE;
@@ -726,7 +730,7 @@ public final class Canere {
                         w.take(i, j, d, nid);
                         if (w.cnt == 1) {
                             Tr tr1 = w.trs(ss, names);
-                            ub.report(tr1, ev.evaluate(tr1, null));
+                            ub.report(tr1, ev.evaluate(tr1, sv));
                             if (fn < free.length) free[fn++] = w;
                             continue;
                         }
@@ -759,9 +763,10 @@ public final class Canere {
                 final Ceiling ub;
                 final Mem tr;
                 final Probe pb = new Probe();
+                final Eval sc;
                 final int cc;
                 final float[][] bs; final int[][] bi, bj, bd;
-                final int[] fCnt, fCur, fSi, fVi, fSj, fVj, fNid;
+                final int[] fCnt, fCur, fSi, fVi, fSj, fVj;
                 final long[] fCost, fMsh;
                 long nodes; boolean abort;
                 Ctx(Vanilla k, Evaluator ev, int[] ss, String[] names, long budget, long deadline, float lambda, Ceiling ub) {
@@ -774,8 +779,8 @@ public final class Canere {
                     if (n > 32) throw new IllegalStateException("B&B supports at most 32 leaves");
                     cc = n * (n - 1);
                     bs = new float[n][cc]; bi = new int[n][cc]; bj = new int[n][cc]; bd = new int[n][cc];
-                    fCnt = new int[n]; fCur = new int[n]; fSi = new int[n]; fVi = new int[n]; fSj = new int[n]; fVj = new int[n];
-                    fCost = new long[n]; fMsh = new long[n]; fNid = new int[n];
+                    sc = new Eval(2 * n - 1);
+                    fCnt = new int[n]; fCur = new int[n]; fSi = new int[n]; fVi = new int[n]; fSj = new int[n]; fVj = new int[n]; fCost = new long[n]; fMsh = new long[n];
                 }
             }
             static void dfs(Ctx cx, WSet w) {
@@ -784,7 +789,7 @@ public final class Canere {
                 }
                 if (w.cnt == 1) {
                     Tr p = w.trs(cx.ss, cx.names);
-                    cx.ub.report(p, cx.ev.evaluate(p, null));
+                    cx.ub.report(p, cx.ev.evaluate(p, cx.sc));
                     return;
                 }
                 long lbv = cx.fr.compute(w, cx.type);
@@ -818,7 +823,6 @@ public final class Canere {
                     cx.fCnt[dep] = w.cnt; cx.fCur[dep] = w.cur; cx.fCost[dep] = w.cost; cx.fMsh[dep] = w.msh;
                     cx.fSi[dep] = w.liveS[i]; cx.fVi[dep] = w.liveV[i];
                     cx.fSj[dep] = w.liveS[j]; cx.fVj[dep] = w.liveV[j];
-                    cx.fNid[dep] = nid;
                     w.cost += cx.pb.cost;
                     w.take(i, j, d, nid);
                     dfs(cx, w);
@@ -838,17 +842,16 @@ public final class Canere {
                 final Floor fr; final int type;
                 final int[] ss, side = {0}, post, lc; final String[] names;
                 final Probe pb = new Probe();
-                final boolean[] skip, subM, ancM;
+                final boolean[] skip, subM, ancM; final int[] stk;
                 final Greedy.Ctx g = new Greedy.Ctx();
-                final Eval[] ebuf = new Eval[2];
-                final Tr[] pbuf = new Tr[2];
+                final Eval[] ebuf = new Eval[1];
+                final Tr[] pbuf = new Tr[1];
                 WSet skel;
-                int bflip;
                 Lx(Pool pool, Vanilla k, Evaluator ev, Floor fr, int[] ss, String[] names) {
                     int n = ss.length;
                     this.pool = pool; this.k = k; this.ev = ev; this.fr = fr; this.type = pool.type(ss[0]); this.ss = ss; this.names = names;
-                    skip = new boolean[n - 1]; post = new int[n - 1]; subM = new boolean[2 * n - 1]; ancM = new boolean[2 * n - 1]; lc = new int[2 * n - 1];
-                    ebuf[0] = new Eval(2 * n - 1); ebuf[1] = new Eval(2 * n - 1);
+                    skip = new boolean[n - 1]; post = new int[n - 1]; stk = new int[2 * n]; subM = new boolean[2 * n - 1]; ancM = new boolean[2 * n - 1]; lc = new int[2 * n - 1];
+                    ebuf[0] = new Eval(2 * n - 1);
                 }
             }
             static void con(Pool pool, Vanilla k, Evaluator ev, Floor fr, int[] ss, String[] names, long deadline, int stall, long seed, Ceiling ub) {
@@ -864,7 +867,6 @@ public final class Canere {
                     int op = r.nextFloat() * (w[0] + w[1]) < w[0] ? 0 : 1;
                     long prev = ub.cost;
                     boolean acc = op == 0 ? dig(x, r, rs, ub) : swapOp(x, r, ub);
-                    x.bflip ^= 1;
                     if (acc) {
                         rs = RefSeq.of(ub.tr, ub.eval);
                         if (ub.cost < prev) { stallCt = 0; x.side[0] = 0; w[op] += 1f; }
@@ -884,7 +886,7 @@ public final class Canere {
                 Tr tr = ub.tr;
                 Eval cur = ub.eval;
                 int n = tr.n;
-                tr.postOrder(x.post);
+                tr.postOrder(x.post, x.stk);
                 for (int i = 0; i < n; i++) x.lc[i] = 1;
                 for (int i = 0; i < n - 1; i++) { int s = x.post[i]; x.lc[s] = x.lc[tr.l[s]] + x.lc[tr.r[s]]; }
                 int st = r.nextInt(4), X;
@@ -913,7 +915,7 @@ public final class Canere {
                 WSet ws = x.skel;
                 for (int i = 0; i < rs.lu.length; i++) {
                     if (x.skip[i]) continue;
-                    int pu = RefSeq.find(ws, rs.lu[i], -1), pv = RefSeq.find(ws, rs.ru[i], pu);
+                    int pu = RefSeq.at(ws, rs.lu[i], -1), pv = RefSeq.at(ws, rs.ru[i], pu);
                     if (pu < 0 || pv < 0) return false;
                     x.k.probe(rs.lu[i], rs.ru[i], x.pb);
                     if (!x.pb.ok) return false;
@@ -925,13 +927,13 @@ public final class Canere {
                 if (kk < 2) return false;
                 if (x.side[0] >= 3) {
                     long lb = x.fr.compute(ws, x.type);
-                    if (lb < 0 || ws.cost + lb >= ub.cost) return false;
+                    if (lb < 0 || ws.cost + lb >= ub.bn()) return false;
                 }
                 Greedy.GRes rep = Greedy.con(x.pool, x.k, ws.liveV, kk, Scorer.PRESETS[r.nextInt(Scorer.PRESETS.length)], 1 + r.nextInt(3), r, x.g);
                 if (!rep.ok) return false;
                 for (int i = 0; i < x.g.mN; i++) {
                     int u = x.g.mA[i], v = x.g.mB[i];
-                    int pu = RefSeq.find(ws, u, -1), pv = RefSeq.find(ws, v, pu);
+                    int pu = RefSeq.at(ws, u, -1), pv = RefSeq.at(ws, v, pu);
                     if (pu < 0 || pv < 0) return false;
                     x.k.probe(u, v, x.pb);
                     if (!x.pb.ok) return false;
@@ -940,29 +942,29 @@ public final class Canere {
                     if (pu < pv) ws.take(pu, pv, 0, nid); else ws.take(pv, pu, 1, nid);
                 }
                 if (ws.cnt != 1) return false;
-                return accept(x.ev, ub, ws, x.ss, x.names, cur.total, x.side);
+                return accept(x.ev, ub, ws, x.ss, x.names, cur.total, x.side, x.ebuf[0]);
             }
             static boolean swapOp(Lx x, Random r, Ceiling ub) {
-                int n = ub.tr.n, bi = x.bflip;
-                Tr p2 = x.pbuf[bi];
-                if (p2 == null) p2 = x.pbuf[bi] = ub.tr.copy();
+                int n = ub.tr.n;
+                Tr p2 = x.pbuf[0];
+                if (p2 == null) p2 = x.pbuf[0] = ub.tr.copy();
                 else p2.copyFrom(ub.tr);
                 for (int t = 0; t < 4; t++) {
                     int a = r.nextInt(2 * n - 1), b = r.nextInt(2 * n - 1);
                     if (!p2.swap(a, b)) continue;
-                    Eval e2 = x.ev.evaluate(p2, x.ebuf[bi]);
+                    Eval e2 = x.ev.evaluate(p2, x.ebuf[0]);
                     if (e2.feasible && (e2.total < ub.cost || (e2.total == ub.cost && x.side[0] < 3))) {
                         if (e2.total == ub.cost) x.side[0]++;
-                        ub.report(p2.copy(), e2.copy());
+                        ub.report(p2.copy(), e2);
                         return true;
                     }
                     return false;
                 }
                 return false;
             }
-            static boolean accept(Evaluator ev, Ceiling ub, WSet ws, int[] ss, String[] names, long cCost, int[] s) {
+            static boolean accept(Evaluator ev, Ceiling ub, WSet ws, int[] ss, String[] names, long cCost, int[] s, Eval sv) {
                 Tr p = ws.trs(ss, names);
-                Eval e = ev.evaluate(p, null);
+                Eval e = ev.evaluate(p, sv);
                 if (!e.feasible) return false;
                 if (e.total < cCost) { ub.report(p, e); return true; }
                 if (e.total == cCost && s[0] < 3) { s[0]++; ub.report(p, e); return true; }
@@ -972,10 +974,10 @@ public final class Canere {
 
         /** Container for holding intermediate ids */
         static final class Probe {
-            boolean ok;
+            boolean ok, fr;
             long cost, key;
             int conflicts, applied, upgraded, newPenalty, newType, id;
-            final long[] lv = new long[LVW], pr = new long[PRW], am = new long[PRW];
+            final long[] lv = new long[LVW], pr = new long[PRW];
         }
 
         static interface Kernel {
@@ -989,27 +991,22 @@ public final class Canere {
          */
         static final class Vanilla implements Kernel {
             final Lexicon t; final Pool pool; final Policy pol; final Cache cache;
-            long probes, hits, evals, commits, interns;
             Vanilla(Lexicon t, Pool pool, Policy pol) { this.t = t; this.pool = pool; this.pol = pol; this.cache = new Cache(pool, 1 << 16); }
             int limit() { return pol.limit; }
             @Override public void probe(int l, int r, Probe p) {
-                p.key = ((long) l << 32 | r) + 1L;
-                p.id = -1;
-                probes++;
-                if (cache.get(l, r, p)) { hits++; return; }
-                evals++;
+                p.key = ((long) l << 32 | r) + 1L; p.id = -1;
+                if (cache.get(l, r, p)) { p.fr = false; return; }
                 eval(l, r, p);
                 cache.put(p, -1);
+                p.fr = true;
             }
             @Override public int commit(Probe p) {
                 if (!p.ok) return -1;
-                commits++;
                 if (p.id >= 0) return p.id;
-                eval((int) ((p.key - 1) >>> 32), (int) (p.key - 1), p);
+                if (!p.fr) eval((int) ((p.key - 1) >>> 32), (int) (p.key - 1), p);
                 int id = pool.intern(p.lv, p.pr, p.newPenalty, p.newType);
                 p.id = id;
                 cache.put(p, id);
-                interns++;
                 return id;
             }
             void eval(int l, int r, Probe p) {
@@ -1025,7 +1022,7 @@ public final class Canere {
                 if (cost >= limit) return;
                 final long[] con = t.conflict, can = t.ifApply, rlv = pool.lv;
                 final int canB = tl * PRW, rOff = r * LVW;
-                long p0 = pool.pr[l * PRW], p1 = pool.pr[l * PRW + 1], a0 = 0, a1 = 0;
+                long p0 = pool.pr[l * PRW], p1 = pool.pr[l * PRW + 1];
                 int cf = 0, ap = 0, upg = 0;
                 boolean monster = false; // nya
                 for (int w = 0; w < PRW; w++) {
@@ -1044,7 +1041,7 @@ public final class Canere {
                             int nl = cur == rl ? rl + 1 : Math.max(cur, rl), mx = t.maxLv[e];
                             if (nl > mx) nl = mx;
                             p.lv[w2] = p.lv[w2] & ~(15L << sh) | (long) nl << sh;
-                            if (w == 0) { a0 |= 1L << e; p0 |= 1L << e; } else { a1 |= 1L << e; p1 |= 1L << e; }
+                            if (w == 0) p0 |= 1L << e; else p1 |= 1L << e;
                             cost += (long) (rb ? t.bkFee[e] : t.fee[e]) * nl;
                             if (cost >= limit) return;
                             if (nl > cur) upg++;
@@ -1055,7 +1052,7 @@ public final class Canere {
                 p.ok = ap > 0 && cost < limit;
                 p.cost = cost; p.conflicts = cf; p.applied = ap; p.upgraded = upg;
                 p.newPenalty = (int) Math.min((long) Math.max(pool.pen[l], pool.pen[r]) * 2 + 1, Integer.MAX_VALUE);
-                p.pr[0] = p0; p.pr[1] = p1; p.am[0] = a0; p.am[1] = a1;
+                p.pr[0] = p0; p.pr[1] = p1;
             }
         }
 
@@ -1063,16 +1060,15 @@ public final class Canere {
         static final class Evaluator {
             final Kernel k;
             final Probe pb = new Probe();
-            int[] post = new int[0];
+            int[] post = new int[0], stk = new int[0];
             Evaluator(Kernel k) { this.k = k; }
             Eval evaluate(Tr tr, Eval ev) {
                 int n = tr.n, m = 2 * n - 1;
                 if (ev == null || ev.ids.length != m) ev = new Eval(m);
                 if (post.length != n - 1) post = new int[n - 1];
-                tr.postOrder(post);
-                for (int i = 0; i < n; i++) {
-                    ev.ids[i] = tr.leaf[i]; ev.aStep[i] = 0; ev.sub[i] = 0; ev.conflicts[i] = 0;
-                }
+                if (stk.length != 2 * n) stk = new int[2 * n];
+                tr.postOrder(post, stk);
+                for (int i = 0; i < n; i++) { ev.ids[i] = tr.leaf[i]; ev.aStep[i] = 0; ev.conflicts[i] = 0; }
                 ev.feasible = true; ev.failIdx = -1;
                 long total = 0;
                 for (int i = 0; i < n - 1; i++) {
@@ -1083,28 +1079,10 @@ public final class Canere {
                     long c = pb.cost;
                     ev.aStep[s] = (int) c;
                     ev.conflicts[s] = pb.conflicts;
-                    ev.sub[s] = ev.sub[tr.l[s]] + ev.sub[tr.r[s]] + (int) c;
                     total += c;
                 }
                 ev.total = total;
                 return ev;
-            }
-            // seems useless but written
-            void touch(Tr tr, Eval ev, int slot) {
-                if (slot < tr.n) ev.ids[slot] = tr.leaf[slot];
-                int s = tr.p[slot];
-                while (s >= 0) {
-                    k.probe(ev.ids[tr.l[s]], ev.ids[tr.r[s]], pb);
-                    if (!pb.ok) { ev.feasible = false; ev.failIdx = s; ev.total = -1; return; }
-                    ev.ids[s] = k.commit(pb);
-                    long c = pb.cost;
-                    ev.aStep[s] = (int) c;
-                    ev.conflicts[s] = pb.conflicts;
-                    ev.sub[s] = ev.sub[tr.l[s]] + ev.sub[tr.r[s]] + (int) c;
-                    s = tr.p[s];
-                }
-                ev.feasible = true; ev.failIdx = -1;
-                ev.total = ev.sub[tr.root()];
             }
         }
 
@@ -1145,14 +1123,17 @@ public final class Canere {
         }
 
         /** Suzume */
-        static final class Ceiling { // TODO
-            Tr tr; Eval eval; long cost = Long.MAX_VALUE;
-            int version;
+        static final class Ceiling {
+            Tr tr; Eval eval; AtomicLong ext; long cost = Long.MAX_VALUE;
+            int ver;
             boolean report(Tr p, Eval e) {
                 if (!e.feasible || e.total >= cost) return false;
-                tr = p; eval = e; cost = e.total; version++; return true;
+                tr = p; eval = e.copy(); cost = e.total; ver++;
+                if (ext != null) ext.accumulateAndGet(cost, Math::min);
+                return true;
             }
             boolean found() { return cost < Long.MAX_VALUE; }
+            long bn() { return ext == null ? cost : Math.min(cost, ext.get()); }
         }
         static final class Floor {
             final Pool pool; final Lexicon t; final int cap;
@@ -1176,8 +1157,11 @@ public final class Canere {
                 int c0 = 0;
                 for (int i = 0; i < L; i++) if (pool.pen[w.liveV[i]] == m) c0++;
                 int q0 = Math.min(c0 >> 1, Math.min(L >> 1, L - 2)), l = Math.max(0, H - 2), r = Math.max(0, L - 2 - q0 - l);
-                long in = (long) q0 * (2L * m + 1) + (long) r * (2L * m + 3);
-                for (int h = 2; h < H; h++) in += (1L << h) * (m + 1L) - 1;
+                long in = 0;
+                if (t.pf) {
+                    in = (long) q0 * (2L * m + 1) + (long) r * (2L * m + 3);
+                    for (int h = 2; h < H; h++) in += (1L << h) * (m + 1L) - 1;
+                }
                 long u0 = 0, u1 = 0;
                 for (int i = 0; i < L; i++) { int b = w.liveV[i] * PRW; u0 |= pool.pr[b]; u1 |= pool.pr[b + 1]; }
                 if (pa.length < L) pa = new long[Math.max(L, 8)];
@@ -1190,7 +1174,7 @@ public final class Canere {
                             int e = (wd << 6) + Long.numberOfTrailingZeros(x); x &= x - 1;
                             if (!t.ifApply(type, e)) continue;
                             boolean cf = (t.conflict[e * PRW] & u0) != 0 || (t.conflict[e * PRW + 1] & u1) != 0;
-                            pv += cf ? 1 : (long) t.bkFee[e] * Math.min(pool.level(is, e), t.maxLv[e]);
+                            pv += cf ? (t.pf ? 1 : 0) : (long) (t.pf ? t.bkFee[e] : Math.min(t.bkFee[e], t.fee[e])) * Math.min(pool.level(is, e), t.maxLv[e]);
                         }
                     }
                     pa[i] = pv; tl += pv;
@@ -1198,7 +1182,7 @@ public final class Canere {
                 }
                 long e1 = tl - ml;
                 long bs = in;
-                if (L <= 256) {
+                if (t.pf && L <= 256) {
                     Sdp dp = Sdp.at(L);
                     Arrays.sort(pa, 0, L);
                     int rm = Arrays.binarySearch(pa, 0, L, ml);
@@ -1355,12 +1339,12 @@ public final class Canere {
         /** Lex for lookups */
         static final class Lexicon {
             final int ne, nt, nw, pw;
-            final boolean truncated;
+            final boolean truncated, pf;
             final int[] maxLv, fee, bkFee;
             final long[] conflict, ifApply;
             final boolean[] book, dmg, ifStore;
             final String[] eName, tName;
-            Lexicon(int ne, int nt, int nw, int pw, boolean truncated, int[] maxLv, int[] fee, int[] bkFee, long[] conflict, long[] ifApply, boolean[] book, boolean[] dmg, boolean[] ifStore, String[] eName, String[] tName) { this.ne = ne; this.nt = nt; this.nw = nw; this.pw = pw; this.truncated = truncated;this.maxLv = maxLv; this.fee = fee; this.bkFee = bkFee;this.conflict = conflict; this.ifApply = ifApply;this.book = book; this.dmg = dmg; this.ifStore = ifStore;this.eName = eName; this.tName = tName; }
+            Lexicon(int ne, int nt, int nw, int pw, boolean truncated, boolean pf, int[] maxLv, int[] fee, int[] bkFee, long[] conflict, long[] ifApply, boolean[] book, boolean[] dmg, boolean[] ifStore, String[] eName, String[] tName) { this.ne = ne; this.nt = nt; this.nw = nw; this.pw = pw; this.truncated = truncated; this.pf = pf;this.maxLv = maxLv; this.fee = fee; this.bkFee = bkFee;this.conflict = conflict; this.ifApply = ifApply;this.book = book; this.dmg = dmg; this.ifStore = ifStore;this.eName = eName; this.tName = tName; }
             int maxLv(int e) { return maxLv[e]; }
             int aCost(int e) { return fee[e]; } // Anvil costs
             int baCost(int e) { return bkFee[e]; } // Blue Archive costs
@@ -1386,13 +1370,15 @@ public final class Canere {
             Lexicon begin() {
                 int ne = es.size(), nt = ts.size();
                 if (ne > MAX) throw new IllegalStateException("too many enchantments: " + ne);
-                boolean tr = false;
+                boolean tr = false, pf = true;
                 int[] ml = new int[ne], fee = new int[ne], bf = new int[ne];
                 for (int e = 0; e < ne; e++) {
                     int[] s = es.get(e);
                     if (s[0] > MAX_LV) { ml[e] = MAX_LV; tr = true; } else ml[e] = s[0];
                     if (s[0] < 0) throw new IllegalArgumentException("negative max level");
+                    if (s[1] < 0) throw new IllegalArgumentException("negative anvil cost");
                     fee[e] = s[1]; bf[e] = Math.max(1, s[1] / 2);
+                    if (s[1] == 0) pf = false;
                 }
                 long[] con = new long[ne * PRW];
                 for (int[] p : pairs) {
@@ -1411,7 +1397,7 @@ public final class Canere {
                     int[] s = ts.get(i); bk[i] = s[0] != 0; dmg[i] = s[1] != 0; st[i] = s[2] != 0;
                 }
                 int nw = (ne + 15) >>> 4, pw = (ne + 63) >>> 6;
-                return new Lexicon(ne, nt, nw, pw, tr, ml, fee, bf, con, ca, bk, dmg, st, en.toArray(new String[0]), tn.toArray(new String[0]));
+                return new Lexicon(ne, nt, nw, pw, tr, pf, ml, fee, bf, con, ca, bk, dmg, st, en.toArray(new String[0]), tn.toArray(new String[0]));
             }
             static void chk(int id, int ne) { if (id < 0 || id >= ne) throw new IllegalArgumentException("bad enchant id"); }
         }
@@ -1441,7 +1427,7 @@ public final class Canere {
                 int i = (int) h & tMask;
                 while (tab[i] != 0) {
                     int id = tab[i] - 1;
-                    if (hsh[id] == h && eq(id, l, p2, pen, type)) return id; // fully same
+                    if (hsh[id] == h && eq(id, l, p2, pen, type)) return id;
                     i = (i + 1) & tMask;
                 }
                 if (n == cap) { grow(); i = (int) h & tMask; while (tab[i] != 0) i = (i + 1) & tMask; }
@@ -1455,10 +1441,6 @@ public final class Canere {
             int penalty(int id) { return pen[id]; }
             int type(int id) { return typ[id]; }
             boolean ifBook(int id) { return lex.book[typ[id]]; }
-            void copy(int id, long[] dstLv, long[] dstPr) {
-                System.arraycopy(lv, id * LVW, dstLv, 0, LVW);
-                System.arraycopy(pr, id * PRW, dstPr, 0, PRW);
-            }
             View view(int id) { return new View(this, lex, id); }
             Pool fork() {
                 Pool f = new Pool(lex, Math.max(16, n));
@@ -1533,7 +1515,6 @@ public final class Canere {
                 st = new int[c]; cfa = new int[c];
                 mask = c - 1;
             }
-            void clear() { Arrays.fill(k, 0L); cnt = 0; }
             boolean get(int l, int r, Probe p) {
                 long key = ((long) l << 32 | r) + 1L;
                 int i = (int) BitVec.mix64(key) & mask;
@@ -1632,11 +1613,13 @@ public final class Canere {
             boolean swap(int a, int b) {
                 int m = 2 * n - 1;
                 if (a == b || a < 0 || b < 0 || a >= m || b >= m) return false;
-                if (p[a] < 0 || p[b] < 0) return false;
-                if (ifAncestor(a, b) || ifAncestor(b, a)) return false;
                 int pa = p[a], pb = p[b];
-                if (l[pa] == a) l[pa] = b; else r[pa] = b;
-                if (l[pb] == b) l[pb] = a; else r[pb] = a;
+                if (pa < 0 || pb < 0) return false;
+                if (pa == pb) { int t = l[pa]; l[pa] = r[pa]; r[pa] = t; return true; }
+                if (ifAncestor(a, b) || ifAncestor(b, a)) return false;
+                boolean al = l[pa] == a, bl = l[pb] == b;
+                if (al) l[pa] = b; else r[pa] = b;
+                if (bl) l[pb] = a; else r[pb] = a;
                 p[a] = pb; p[b] = pa;
                 return true;
             }
@@ -1651,15 +1634,9 @@ public final class Canere {
                     if (rc >= 0) { p[rc] = s; if (rc >= n) ss[sp++] = rc; }
                 }
             }
-            /** Check if the subtree contains node 'x' */
-            boolean contains(int slot, int x) {
-                if (slot == x) return true;
-                if (slot < n || slot < 0) return false;
-                return contains(l[slot], x) || contains(r[slot], x);
-            }
-            void postOrder(int[] out) {
+            void postOrder(int[] out) { postOrder(out, new int[2 * n]); }
+            void postOrder(int[] out, int[] ss) {
                 if (n == 1) return;
-                int[] ss = new int[2 * n];
                 int sp = 0, oi = n - 1;
                 ss[sp++] = 2 * n - 2;
                 while (sp > 0) {
@@ -1678,7 +1655,6 @@ public final class Canere {
             long total = -1;
             int failIdx = -1;
             Eval(int slots) { ids = new int[slots]; aStep = new int[slots]; sub = new int[slots]; conflicts = new int[slots]; }
-            int rootIdx() { return ids[ids.length - 1]; }
             Eval copy() {
                 Eval c = new Eval(ids.length);
                 System.arraycopy(ids, 0, c.ids, 0, ids.length);
@@ -1706,21 +1682,9 @@ public final class Canere {
                 }
                 return rs;
             }
-            static int find(WSet ws, int id, int excl) {
+            static int at(WSet ws, int id, int excl) {
                 for (int i = 0; i < ws.cnt; i++) if (i != excl && ws.liveV[i] == id) return i;
                 return -1;
-            }
-            boolean replayAll(Vanilla k, WSet ws, Probe pb) {
-                for (int i = 0; i < lu.length; i++) {
-                    int pu = find(ws, lu[i], -1), pv = find(ws, ru[i], pu);
-                    if (pu < 0 || pv < 0) return false;
-                    k.probe(lu[i], ru[i], pb);
-                    if (!pb.ok) return false;
-                    int nid = k.commit(pb);
-                    ws.cost += pb.cost;
-                    if (pu < pv) ws.take(pu, pv, 0, nid); else ws.take(pv, pu, 1, nid);
-                }
-                return true;
             }
         }
 
@@ -1832,8 +1796,7 @@ public final class Canere {
                 msh += sig(nid) - sig(u) - sig(v);
                 if (nid >= idCnt.length) idCnt = Arrays.copyOf(idCnt, Math.max(nid + 1, idCnt.length * 2));
                 idCnt[u]--; idCnt[v]--; idCnt[nid]++;
-                liveS[i] = s; liveV[i] = nid;
-                liveS[j] = liveS[cnt - 1]; liveV[j] = liveV[cnt - 1];
+                liveS[i] = s; liveV[i] = nid; liveS[j] = liveS[cnt - 1]; liveV[j] = liveV[cnt - 1];
                 cnt--;
             }
             static long sig(int id) { return BitVec.mix64((id + 1) * 0x9E3779B97F4A7C15L); }
