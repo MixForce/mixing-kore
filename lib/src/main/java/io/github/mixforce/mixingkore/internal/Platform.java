@@ -9,6 +9,7 @@ public final class Platform {
     private static final String[] REQUIRED = {
             "jdk.incubator.vector.LongVector",
             "jdk.incubator.vector.FloatVector",
+            "jdk.incubator.vector.DoubleVector",
     };
     public static final boolean VECTOR_OK = probe();
     public static final boolean BW = Boolean.getBoolean("mix.broadword");

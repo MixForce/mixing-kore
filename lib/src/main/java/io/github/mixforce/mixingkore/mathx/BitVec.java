@@ -5,13 +5,16 @@
 package io.github.mixforce.mixingkore.mathx;
 
 import io.github.mixforce.mixingkore.internal.Platform;
-import io.github.mixforce.mixingkore.internal.Simd;
+import jdk.incubator.vector.LongVector;
+import jdk.incubator.vector.VectorOperators;
+import jdk.incubator.vector.VectorSpecies;
 
 public final class BitVec {
     private BitVec() {}
 
     private static final byte[] SEL8 = Platform.BW ? sel8() : null;
     static final long M2 = 0x5555555555555555L, M4 = 0x3333333333333333L, M8 = 0x0f0f0f0f0f0f0f0fL, H4 = 0x1111111111111111L;
+    private static final int VEC_MIN_N = 16;
 
     public static long msk(int w) { return w == 64 ? -1L : (1L << w) - 1L; }
     public static long msk(int o, int w) { return msk(w) << o; }
@@ -27,7 +30,10 @@ public final class BitVec {
 
     public static int pop(long x) { return Long.bitCount(x); }
     public static int pop(long[] v) { return pop(v, v.length); }
-    public static int pop(long[] v, int n) { int s = 0; for (int i = 0; i < n; i++) s += Long.bitCount(v[i]); return s; }
+    public static int pop(long[] v, int n) {
+        if (Platform.VECTOR_OK && n >= VEC_MIN_N) return Simd.pop(v, n);
+        int s = 0; for (int i = 0; i < n; i++) s += Long.bitCount(v[i]); return s;
+    }
 
     public static long pop2(long x) { return (x & M2) + (x >>> 1 & M2); }
     public static long pop4(long x) { x -= x >>> 1 & M2; return (x & M4) + (x >>> 2 & M4); }
@@ -251,8 +257,6 @@ public final class BitVec {
         h ^= h >>> 33; return h;
     }
 
-    public static int vecPop(long[] a, int n) { return Platform.VECTOR_OK ? Simd.pop(a, n) : pop(a, n); }
-
     public static final class Rank {
         static final int WPB = 7, BPS = 8, SH = 3;
         final long[] a;
@@ -289,6 +293,19 @@ public final class BitVec {
                 c += p;
             }
             return -1;
+        }
+    }
+
+    private static final class Simd {
+        private Simd() {}
+        private static final VectorSpecies<Long> L = LongVector.SPECIES_PREFERRED;
+        static int pop(long[] a, int n) {
+            LongVector acc = LongVector.zero(L);
+            int i = 0;
+            for (; i < L.loopBound(n); i += L.length()) acc = acc.add(LongVector.fromArray(L, a, i).lanewise(VectorOperators.BIT_COUNT));
+            long s = acc.reduceLanes(VectorOperators.ADD);
+            for (; i < n; i++) s += Long.bitCount(a[i]);
+            return (int) s;
         }
     }
 }

@@ -8,7 +8,9 @@ import io.github.mixforce.mixingkore.mathx.FastMath;
 import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * @see net.minecraft.world.entity.projectile.EyeOfEnder
@@ -35,9 +37,10 @@ public final class Arcanum {
             public int topN = 5;
         }
 
-        public static record Solution(Locus.Candidate[] c, double conf, int eyes, int clusters, String[] warns) {}
+        public static record Solution(Locus.Candidate[] c, double conf, int rays, int clusters, String[] warns) {}
 
         public Solution explore() {
+            if (cfg.clusRad <= 0 || cfg.dop < 0 || cfg.dop > 1 || cfg.topN < 0) throw new IllegalArgumentException("bad config");
             if (!dty && vcl == cfg.clusRad && vdp == cfg.dop && vtn == cfg.topN) return sol;
             int m = 0, ns = n.size();
             if (arr.length < ns) arr = new Locus.Ray[ns];
@@ -91,11 +94,11 @@ public final class Arcanum {
                 ac(ol, (int) gk[bi], (int) (gk[bi] >> 32), bm, wv, ox, oz, c, (double) c / m, w);
                 ncl++;
             }
-            if (ncl > 0 && ln > 0) w.add("Excluded " + ln + " inconsistent eye.");
+            if (ncl > 0 && ln > 0) w.add("Excluded " + ln + " inconsistent eye" + (ln > 1 ? "s" : "") + ".");
             if (ln == 1) {
                 for (int i = 0; i < m; i++) if (!us[i]) { exp(arr[i], ol); ncl++; break; }
             } else if (ln >= 2) {
-                w.add(!apr ? "Rays parallel." : gn == 0 ? "Rays divergent." : "No ray consensus.");
+                w.add(!apr ? "Parallel rays." : gn == 0 ? "No forward intersection." : "No ray consensus.");
                 exp(arr[Locus.longest(arr, us, m)], ol);
                 ncl++;
             }
@@ -115,7 +118,10 @@ public final class Arcanum {
             return co(new Solution(nt, conf, m, ncl, w.toArray(new String[0])));
         }
 
-        public void spawn(int id, double x, double z) { n.add(new Node(id, x, z, 36.0)); dty = true; }
+        public void spawn(int id, double x, double z) {
+            for (Iterator<Node> it = n.iterator(); it.hasNext(); ) if (it.next().id == id) it.remove();
+            n.add(new Node(id, x, z, 36.0)); dty = true;
+        }
 
         public void tick(int id, double x, double z) {
             if (n.isEmpty()) return;
@@ -128,9 +134,9 @@ public final class Arcanum {
             if (e.fchd > 0) {
                 double cross = Math.abs((double) e.fdx * nz - (double) e.fdz * nx), dot = (double) e.fdx * nx + (double) e.fdz * nz;
                 if (cross > 0x1.1df37c4954c21p-7 || dot < 0) {
-                    dty = true;
-                    if (!e.bn) { e.bn = true; warns.add("Bent eye " + e.id + " by " + String.format(java.util.Locale.ROOT, "%.2f", Math.toDegrees(FastMath.atan2((float) cross, (float) dot))) + " deg."); }
-                    dx = x - e.lx; dz = z - e.lz; d2 = dx * dx + dz * dz;
+                    if (!e.bn) { e.bn = true; warns.add("Bent eye " + e.id + " by " + String.format(Locale.ROOT, "%.2f", Math.toDegrees(FastMath.atan2((float) cross, (float) dot))) + " deg."); }
+                    if (dot < 0) { e.lx = x; e.lz = z; e.nxl = d2 * 2.25; return; }
+                    dty = true; dx = x - e.lx; dz = z - e.lz; d2 = dx * dx + dz * dz;
                     if (d2 <= 0) return;
                     chd = Math.sqrt(d2); inv = (float) (1.0 / chd); nx = (float) (dx * inv); nz = (float) (dz * inv);
                     e.ox = e.lx; e.oz = e.lz;
@@ -141,6 +147,11 @@ public final class Arcanum {
         }
 
         public void undo() { if (!n.isEmpty()) { n.remove(n.size() - 1); dty = true; } }
+        public boolean remove(int id) {
+            boolean rm = false;
+            for (Iterator<Node> it = n.iterator(); it.hasNext(); ) if (it.next().id == id) { it.remove(); rm = true; }
+            if (rm) dty = true; return rm;
+        }
         public void clear() { n.clear(); warns.clear(); dty = true; }
         public int ndx() { return n.size(); }
         public List<String> warns() { return List.copyOf(warns); }
@@ -219,7 +230,7 @@ public final class Arcanum {
     }
 
     public static final class Locus {
-        private Locus() {};
+        private Locus() {}
 
         public static record Candidate(int cx, int cz, double sc, int ring, int rays, double dop, double sd, double rd) {}
         static record Ray(double ox, double oz, float dx, float dz, float chd) {}

@@ -4,6 +4,8 @@
 // </editor-fold>
 package io.github.mixforce.mixingkore.ops;
 
+import io.github.mixforce.mixingkore.internal.Platform;
+import jdk.incubator.vector.*;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.Position;
@@ -157,31 +159,24 @@ public final class FastLoc {
                 if (size == a.length) grow(size + (size >> 1) + 8);
                 int n = size - i;
                 System.arraycopy(a, i, a, i + 1, n);
-                a[i] = l;
-                size++;
+                a[i] = l; size++;
             }
             public void addAll(long[] ls) {
                 int n = ls.length;
                 if (n == 0) return;
                 if (size + n > a.length) grow(size + n);
-                System.arraycopy(ls, 0, a, size, n);
-                size += n;
+                System.arraycopy(ls, 0, a, size, n); size += n;
             }
             public void addAll(List o) {
                 if (o.size == 0) return;
                 if (size + o.size > a.length) grow(size + o.size);
-                System.arraycopy(o.a, 0, a, size, o.size);
-                size += o.size;
+                System.arraycopy(o.a, 0, a, size, o.size); size += o.size;
             }
             public void set(int i, long l) { a[i] = l; }
             public void swap(int i, int j) { long t = a[i]; a[i] = a[j]; a[j] = t; }
             public void apply(Op op) {
                 Mutable m = new Mutable();
-                for (int i = 0; i < size; i++) {
-                    m.set(a[i]);
-                    op.apply(m);
-                    a[i] = m.bits();
-                }
+                for (int i = 0; i < size; i++) { m.set(a[i]); op.apply(m); a[i] = m.bits(); }
             }
             public Pos get(int i) { return new Pos(a[i]); }
             public Mutable get(int i, Mutable out) { return out.set(a[i]); }
@@ -197,17 +192,53 @@ public final class FastLoc {
             public long pop() { return a[--size]; }
             public void pop(int i) { a[i] = a[--size]; }
             public void rmLast() { size--; }
-            public void rm(int i) {
-                int n = --size - i;
-                System.arraycopy(a, i + 1, a, i, n);
-            }
+            public void rm(int i) { int n = --size - i; System.arraycopy(a, i + 1, a, i, n); }
             public void clear() { size = 0; }
             public void trim() { if (size < a.length) a = Arrays.copyOf(a, size); }
             public void sort() { Arrays.sort(a, 0, size); }
             public int binarySearch(long l) { return Arrays.binarySearch(a, 0, size, l); }
             private void grow(int cap) { a = Arrays.copyOf(a, cap); }
+            public void map(LVMap fn, long[] out) {
+                vg();
+                if (out.length < size) throw new IllegalArgumentException("out too small: " + out.length + " < " + size);
+                VectorSpecies<Long> S = LongVector.SPECIES_PREFERRED;
+                int n = size, L = S.length(), i = 0;
+                for (; i <= n - L; i += L) fn.apply(LongVector.fromArray(S, a, i)).intoArray(out, i);
+                if (i < n) { VectorMask<Long> m = S.indexInRange(i, n); fn.apply(LongVector.fromArray(S, a, i, m)).intoArray(out, i, m); }
+            }
+            public void fill(LVMap fn) {
+                vg();
+                VectorSpecies<Long> S = LongVector.SPECIES_PREFERRED;
+                int n = size, L = S.length(), i = 0;
+                for (; i <= n - L; i += L) fn.apply(LongVector.fromArray(S, a, i)).intoArray(a, i);
+                if (i < n) { VectorMask<Long> m = S.indexInRange(i, n); fn.apply(LongVector.fromArray(S, a, i, m)).intoArray(a, i, m); }
+            }
+            public int count(LVPred pred) {
+                vg();
+                VectorSpecies<Long> S = LongVector.SPECIES_PREFERRED;
+                int c = 0;
+                for (int i = 0; i < size; i += S.length()) { VectorMask<Long> m = S.indexInRange(i, size); c += pred.test(LongVector.fromArray(S, a, i, m)).and(m).trueCount(); }
+                return c;
+            }
+            public int cull(LVPred pred, int[] out) {
+                vg();
+                if (out.length < size) throw new IllegalArgumentException("out too small: " + out.length + " < " + size);
+                VectorSpecies<Long> S = LongVector.SPECIES_PREFERRED;
+                int n = size, c = 0;
+                for (int i = 0; i < n; i += S.length()) {
+                    VectorMask<Long> m = S.indexInRange(i, n);
+                    long l = pred.test(LongVector.fromArray(S, a, i, m)).and(m).toLong();
+                    while (l != 0) { int k = Long.numberOfTrailingZeros(l); out[c++] = i + k; l &= l - 1; }
+                }
+                return c;
+            }
+            private static void vg() { if (!Platform.VECTOR_OK) throw new IllegalStateException("jdk.incubator.vector absent"); }
             @FunctionalInterface
             public interface Op { void apply(Mutable m); }
+            @FunctionalInterface
+            public interface LVMap { LongVector apply(LongVector l); }
+            @FunctionalInterface
+            public interface LVPred { VectorMask<Long> test(LongVector l); }
         }
     }
     public static final class Vec3d {
@@ -449,15 +480,14 @@ public final class FastLoc {
             }
             public void apply(Op op) {
                 Mutable m = new Mutable();
-                for (int i = 0; i < size; i++) {
-                    m.set(xs[i], ys[i], zs[i]);
-                    op.apply(m);
-                    xs[i] = m.x; ys[i] = m.y; zs[i] = m.z;
-                }
+                for (int i = 0; i < size; i++) { m.set(xs[i], ys[i], zs[i]); op.apply(m); xs[i] = m.x; ys[i] = m.y; zs[i] = m.z; }
             }
             public double x(int i) { return xs[i]; }
             public double y(int i) { return ys[i]; }
             public double z(int i) { return zs[i]; }
+            public double[] xs() { return xs; }
+            public double[] ys() { return ys; }
+            public double[] zs() { return zs; }
             public Vec3d get(int i) { return new Vec3d(xs[i], ys[i], zs[i]); }
             public Mutable get(int i, Mutable out) { return out.set(xs[i], ys[i], zs[i]); }
             public double[] flatArray() {
@@ -475,14 +505,149 @@ public final class FastLoc {
                 System.arraycopy(xs, i + 1, xs, i, n); System.arraycopy(ys, i + 1, ys, i, n); System.arraycopy(zs, i + 1, zs, i, n);
             }
             public void clear() { size = 0; }
-            public void trim() {
-                if (size < xs.length) {
-                    xs = Arrays.copyOf(xs, size); ys = Arrays.copyOf(ys, size); zs = Arrays.copyOf(zs, size);
-                }
+            public void trim() { if (size < xs.length) { xs = Arrays.copyOf(xs, size); ys = Arrays.copyOf(ys, size); zs = Arrays.copyOf(zs, size); } }
+            public void size(int n) {
+                if (n < 0) throw new IllegalArgumentException("negative size");
+                if (n > xs.length) grow(n);
+                size = n;
             }
             private void grow(int c) { xs = Arrays.copyOf(xs, c); ys = Arrays.copyOf(ys, c); zs = Arrays.copyOf(zs, c); }
+            public void map(V3Map fn, double[] out) {
+                vg();
+                if (out.length < size) throw new IllegalArgumentException("out too small: " + out.length + " < " + size);
+                VectorSpecies<Double> S = DoubleVector.SPECIES_PREFERRED;
+                int n = size, L = S.length(), i = 0;
+                for (; i <= n - L; i += L) { DoubleVector r = fn.apply(DoubleVector.fromArray(S, xs, i), DoubleVector.fromArray(S, ys, i), DoubleVector.fromArray(S, zs, i)); r.intoArray(out, i); }
+                if (i < n) {
+                    VectorMask<Double> m = S.indexInRange(i, n);
+                    DoubleVector r = fn.apply(DoubleVector.fromArray(S, xs, i, m), DoubleVector.fromArray(S, ys, i, m), DoubleVector.fromArray(S, zs, i, m));
+                    r.intoArray(out, i, m);
+                }
+            }
+            public void map(V3Map fx, V3Map fy, V3Map fz, List out) {
+                vg(); out.size(size);
+                VectorSpecies<Double> S = DoubleVector.SPECIES_PREFERRED;
+                int n = size, L = S.length(), i = 0;
+                double[] X = out.xs, Y = out.ys, Z = out.zs;
+                for (; i <= n - L; i += L) {
+                    DoubleVector x = DoubleVector.fromArray(S, xs, i), y = DoubleVector.fromArray(S, ys, i), z = DoubleVector.fromArray(S, zs, i);
+                    fx.apply(x, y, z).intoArray(X, i); fy.apply(x, y, z).intoArray(Y, i); fz.apply(x, y, z).intoArray(Z, i);
+                }
+                if (i < n) {
+                    VectorMask<Double> m = S.indexInRange(i, n);
+                    DoubleVector x = DoubleVector.fromArray(S, xs, i, m), y = DoubleVector.fromArray(S, ys, i, m), z = DoubleVector.fromArray(S, zs, i, m);
+                    fx.apply(x, y, z).intoArray(X, i, m); fy.apply(x, y, z).intoArray(Y, i, m); fz.apply(x, y, z).intoArray(Z, i, m);
+                }
+            }
+            public void fill(V3Map fx, V3Map fy, V3Map fz) { map(fx, fy, fz, this); }
+            public double sum(V3Map fn) {
+                vg();
+                VectorSpecies<Double> S = DoubleVector.SPECIES_PREFERRED;
+                DoubleVector acc = DoubleVector.zero(S);
+                int n = size, L = S.length();
+                for (int i = 0; i < n; i += L) {
+                    VectorMask<Double> m = S.indexInRange(i, n);
+                    DoubleVector r = fn.apply(DoubleVector.fromArray(S, xs, i, m), DoubleVector.fromArray(S, ys, i, m), DoubleVector.fromArray(S, zs, i, m));
+                    acc = acc.lanewise(VectorOperators.ADD, r, m);
+                }
+                return acc.reduceLanes(VectorOperators.ADD);
+            }
+            public double max(V3Map fn) {
+                vg();
+                VectorSpecies<Double> S = DoubleVector.SPECIES_PREFERRED;
+                DoubleVector acc = DoubleVector.broadcast(S, Double.NEGATIVE_INFINITY);
+                int n = size, L = S.length();
+                for (int i = 0; i < n; i += L) {
+                    VectorMask<Double> m = S.indexInRange(i, n);
+                    DoubleVector r = fn.apply(DoubleVector.fromArray(S, xs, i, m), DoubleVector.fromArray(S, ys, i, m), DoubleVector.fromArray(S, zs, i, m));
+                    acc = acc.lanewise(VectorOperators.MAX, r, m);
+                }
+                return acc.reduceLanes(VectorOperators.MAX);
+            }
+            public double min(V3Map fn) {
+                vg();
+                VectorSpecies<Double> S = DoubleVector.SPECIES_PREFERRED;
+                DoubleVector acc = DoubleVector.broadcast(S, Double.POSITIVE_INFINITY);
+                int n = size, L = S.length();
+                for (int i = 0; i < n; i += L) {
+                    VectorMask<Double> m = S.indexInRange(i, n);
+                    DoubleVector r = fn.apply(DoubleVector.fromArray(S, xs, i, m), DoubleVector.fromArray(S, ys, i, m), DoubleVector.fromArray(S, zs, i, m));
+                    acc = acc.lanewise(VectorOperators.MIN, r, m);
+                }
+                return acc.reduceLanes(VectorOperators.MIN);
+            }
+            public int argMax(V3Map fn) {
+                vg();
+                VectorSpecies<Double> S = DoubleVector.SPECIES_PREFERRED;
+                int n = size;
+                if (n == 0) return -1;
+                int L = S.length();
+                DoubleVector RAMP = DoubleVector.zero(S).addIndex(1);
+                DoubleVector dlv = DoubleVector.broadcast(S, Double.NEGATIVE_INFINITY);
+                DoubleVector idxv = RAMP.add(-L);
+                for (int i = 0; i < n; i += L) {
+                    VectorMask<Double> m = S.indexInRange(i, n);
+                    DoubleVector r = fn.apply(DoubleVector.fromArray(S, xs, i, m), DoubleVector.fromArray(S, ys, i, m), DoubleVector.fromArray(S, zs, i, m));
+                    VectorMask<Double> g = r.compare(VectorOperators.GT, dlv).and(m);
+                    idxv = idxv.blend(DoubleVector.broadcast(S, i).addIndex(1), g); dlv = dlv.blend(r, g);
+                }
+                double bm = dlv.reduceLanes(VectorOperators.MAX);
+                if (bm == Double.NEGATIVE_INFINITY) return -1;
+                double bi = Double.POSITIVE_INFINITY;
+                for (int k = 0; k < L; k++) if (dlv.lane(k) == bm && idxv.lane(k) < bi) bi = idxv.lane(k);
+                return (int) bi;
+            }
+            public int argMin(V3Map fn) {
+                vg();
+                VectorSpecies<Double> S = DoubleVector.SPECIES_PREFERRED;
+                int n = size;
+                if (n == 0) return -1;
+                int L = S.length();
+                DoubleVector RAMP = DoubleVector.zero(S).addIndex(1);
+                DoubleVector dlv = DoubleVector.broadcast(S, Double.POSITIVE_INFINITY);
+                DoubleVector idxv = RAMP.add(-L);
+                for (int i = 0; i < n; i += L) {
+                    VectorMask<Double> m = S.indexInRange(i, n);
+                    DoubleVector r = fn.apply(DoubleVector.fromArray(S, xs, i, m), DoubleVector.fromArray(S, ys, i, m), DoubleVector.fromArray(S, zs, i, m));
+                    VectorMask<Double> g = r.compare(VectorOperators.LT, dlv).and(m);
+                    idxv = idxv.blend(DoubleVector.broadcast(S, i).addIndex(1), g); dlv = dlv.blend(r, g);
+                }
+                double bm = dlv.reduceLanes(VectorOperators.MIN);
+                if (bm == Double.POSITIVE_INFINITY) return -1;
+                double bi = Double.POSITIVE_INFINITY;
+                for (int k = 0; k < L; k++) if (dlv.lane(k) == bm && idxv.lane(k) < bi) bi = idxv.lane(k);
+                return (int) bi;
+            }
+            public int count(V3Pred pred) {
+                vg();
+                VectorSpecies<Double> S = DoubleVector.SPECIES_PREFERRED;
+                int c = 0;
+                for (int i = 0; i < size; i += S.length()) {
+                    VectorMask<Double> m = S.indexInRange(i, size);
+                    c += pred.test(DoubleVector.fromArray(S, xs, i, m), DoubleVector.fromArray(S, ys, i, m), DoubleVector.fromArray(S, zs, i, m)).and(m).trueCount();
+                }
+                return c;
+            }
+            public int cull(V3Pred pred, int[] out) {
+                vg();
+                if (out.length < size) throw new IllegalArgumentException("out too small: " + out.length + " < " + size);
+                VectorSpecies<Double> S = DoubleVector.SPECIES_PREFERRED;
+                int n = size, c = 0;
+                for (int i = 0; i < n; i += S.length()) {
+                    VectorMask<Double> m = S.indexInRange(i, n);
+                    VectorMask<Double> g = pred.test(DoubleVector.fromArray(S, xs, i, m), DoubleVector.fromArray(S, ys, i, m), DoubleVector.fromArray(S, zs, i, m)).and(m);
+                    long l = g.toLong();
+                    while (l != 0) { int k = Long.numberOfTrailingZeros(l); out[c++] = i + k; l &= l - 1; }
+                }
+                return c;
+            }
+            private static void vg() { if (!Platform.VECTOR_OK) throw new IllegalStateException("jdk.incubator.vector absent"); }
             @FunctionalInterface
-            public static interface Op { void apply(Mutable m); }
+            public interface Op { void apply(Mutable m); }
+            @FunctionalInterface
+            public interface V3Map { DoubleVector apply(DoubleVector x, DoubleVector y, DoubleVector z); }
+            @FunctionalInterface
+            public interface V3Pred { VectorMask<Double> test(DoubleVector x, DoubleVector y, DoubleVector z); }
         }
     }
     public static final class Vec3f {
@@ -744,15 +909,14 @@ public final class FastLoc {
             }
             public void apply(Op op) {
                 Mutable m = new Mutable();
-                for (int i = 0; i < size; i++) {
-                    m.set(xs[i], ys[i], zs[i]);
-                    op.apply(m);
-                    xs[i] = m.x; ys[i] = m.y; zs[i] = m.z;
-                }
+                for (int i = 0; i < size; i++) { m.set(xs[i], ys[i], zs[i]); op.apply(m); xs[i] = m.x; ys[i] = m.y; zs[i] = m.z; }
             }
             public float x(int i) { return xs[i]; }
             public float y(int i) { return ys[i]; }
             public float z(int i) { return zs[i]; }
+            public float[] xs() { return xs; }
+            public float[] ys() { return ys; }
+            public float[] zs() { return zs; }
             public Vec3f get(int i) { return new Vec3f(xs[i], ys[i], zs[i]); }
             public Mutable get(int i, Mutable out) { return out.set(xs[i], ys[i], zs[i]); }
             public float[] flatArray() {
@@ -770,14 +934,149 @@ public final class FastLoc {
                 System.arraycopy(xs, i + 1, xs, i, n); System.arraycopy(ys, i + 1, ys, i, n); System.arraycopy(zs, i + 1, zs, i, n);
             }
             public void clear() { size = 0; }
-            public void trim() {
-                if (size < xs.length) {
-                    xs = Arrays.copyOf(xs, size); ys = Arrays.copyOf(ys, size); zs = Arrays.copyOf(zs, size);
-                }
+            public void trim() { if (size < xs.length) { xs = Arrays.copyOf(xs, size); ys = Arrays.copyOf(ys, size); zs = Arrays.copyOf(zs, size); } }
+            public void size(int n) {
+                if (n < 0) throw new IllegalArgumentException("negative size");
+                if (n > xs.length) grow(n);
+                size = n;
             }
             private void grow(int cap) { xs = Arrays.copyOf(xs, cap); ys = Arrays.copyOf(ys, cap); zs = Arrays.copyOf(zs, cap); }
+            public void map(V3FMap fn, float[] out) {
+                vg();
+                if (out.length < size) throw new IllegalArgumentException("out too small: " + out.length + " < " + size);
+                VectorSpecies<Float> S = FloatVector.SPECIES_PREFERRED;
+                int n = size, L = S.length(), i = 0;
+                for (; i <= n - L; i += L) { FloatVector r = fn.apply(FloatVector.fromArray(S, xs, i), FloatVector.fromArray(S, ys, i), FloatVector.fromArray(S, zs, i)); r.intoArray(out, i); }
+                if (i < n) {
+                    VectorMask<Float> m = S.indexInRange(i, n);
+                    FloatVector r = fn.apply(FloatVector.fromArray(S, xs, i, m), FloatVector.fromArray(S, ys, i, m), FloatVector.fromArray(S, zs, i, m));
+                    r.intoArray(out, i, m);
+                }
+            }
+            public void map(V3FMap fx, V3FMap fy, V3FMap fz, List out) {
+                vg(); out.size(size);
+                VectorSpecies<Float> S = FloatVector.SPECIES_PREFERRED;
+                int n = size, L = S.length(), i = 0;
+                float[] X = out.xs, Y = out.ys, Z = out.zs;
+                for (; i <= n - L; i += L) {
+                    FloatVector x = FloatVector.fromArray(S, xs, i), y = FloatVector.fromArray(S, ys, i), z = FloatVector.fromArray(S, zs, i);
+                    fx.apply(x, y, z).intoArray(X, i); fy.apply(x, y, z).intoArray(Y, i); fz.apply(x, y, z).intoArray(Z, i);
+                }
+                if (i < n) {
+                    VectorMask<Float> m = S.indexInRange(i, n);
+                    FloatVector x = FloatVector.fromArray(S, xs, i, m), y = FloatVector.fromArray(S, ys, i, m), z = FloatVector.fromArray(S, zs, i, m);
+                    fx.apply(x, y, z).intoArray(X, i, m); fy.apply(x, y, z).intoArray(Y, i, m); fz.apply(x, y, z).intoArray(Z, i, m);
+                }
+            }
+            public void fill(V3FMap fx, V3FMap fy, V3FMap fz) { map(fx, fy, fz, this); }
+            public float sum(V3FMap fn) {
+                vg();
+                VectorSpecies<Float> S = FloatVector.SPECIES_PREFERRED;
+                FloatVector acc = FloatVector.zero(S);
+                int n = size, L = S.length();
+                for (int i = 0; i < n; i += L) {
+                    VectorMask<Float> m = S.indexInRange(i, n);
+                    FloatVector r = fn.apply(FloatVector.fromArray(S, xs, i, m), FloatVector.fromArray(S, ys, i, m), FloatVector.fromArray(S, zs, i, m));
+                    acc = acc.lanewise(VectorOperators.ADD, r, m);
+                }
+                return acc.reduceLanes(VectorOperators.ADD);
+            }
+            public float max(V3FMap fn) {
+                vg();
+                VectorSpecies<Float> S = FloatVector.SPECIES_PREFERRED;
+                FloatVector acc = FloatVector.broadcast(S, Float.NEGATIVE_INFINITY);
+                int n = size, L = S.length();
+                for (int i = 0; i < n; i += L) {
+                    VectorMask<Float> m = S.indexInRange(i, n);
+                    FloatVector r = fn.apply(FloatVector.fromArray(S, xs, i, m), FloatVector.fromArray(S, ys, i, m), FloatVector.fromArray(S, zs, i, m));
+                    acc = acc.lanewise(VectorOperators.MAX, r, m);
+                }
+                return acc.reduceLanes(VectorOperators.MAX);
+            }
+            public float min(V3FMap fn) {
+                vg();
+                VectorSpecies<Float> S = FloatVector.SPECIES_PREFERRED;
+                FloatVector acc = FloatVector.broadcast(S, Float.POSITIVE_INFINITY);
+                int n = size, L = S.length();
+                for (int i = 0; i < n; i += L) {
+                    VectorMask<Float> m = S.indexInRange(i, n);
+                    FloatVector r = fn.apply(FloatVector.fromArray(S, xs, i, m), FloatVector.fromArray(S, ys, i, m), FloatVector.fromArray(S, zs, i, m));
+                    acc = acc.lanewise(VectorOperators.MIN, r, m);
+                }
+                return acc.reduceLanes(VectorOperators.MIN);
+            }
+            public int argMax(V3FMap fn) {
+                vg();
+                VectorSpecies<Float> S = FloatVector.SPECIES_PREFERRED;
+                int n = size;
+                if (n == 0) return -1;
+                int L = S.length();
+                FloatVector RAMP = FloatVector.zero(S).addIndex(1);
+                FloatVector dlv = FloatVector.broadcast(S, Float.NEGATIVE_INFINITY);
+                FloatVector idxv = RAMP.add(-L);
+                for (int i = 0; i < n; i += L) {
+                    VectorMask<Float> m = S.indexInRange(i, n);
+                    FloatVector r = fn.apply(FloatVector.fromArray(S, xs, i, m), FloatVector.fromArray(S, ys, i, m), FloatVector.fromArray(S, zs, i, m));
+                    VectorMask<Float> g = r.compare(VectorOperators.GT, dlv).and(m);
+                    idxv = idxv.blend(FloatVector.broadcast(S, i).addIndex(1), g); dlv = dlv.blend(r, g);
+                }
+                float bm = dlv.reduceLanes(VectorOperators.MAX);
+                if (bm == Float.NEGATIVE_INFINITY) return -1;
+                float bi = Float.POSITIVE_INFINITY;
+                for (int k = 0; k < L; k++) if (dlv.lane(k) == bm && idxv.lane(k) < bi) bi = idxv.lane(k);
+                return (int) bi;
+            }
+            public int argMin(V3FMap fn) {
+                vg();
+                VectorSpecies<Float> S = FloatVector.SPECIES_PREFERRED;
+                int n = size;
+                if (n == 0) return -1;
+                int L = S.length();
+                FloatVector RAMP = FloatVector.zero(S).addIndex(1);
+                FloatVector dlv = FloatVector.broadcast(S, Float.POSITIVE_INFINITY);
+                FloatVector idxv = RAMP.add(-L);
+                for (int i = 0; i < n; i += L) {
+                    VectorMask<Float> m = S.indexInRange(i, n);
+                    FloatVector r = fn.apply(FloatVector.fromArray(S, xs, i, m), FloatVector.fromArray(S, ys, i, m), FloatVector.fromArray(S, zs, i, m));
+                    VectorMask<Float> g = r.compare(VectorOperators.LT, dlv).and(m);
+                    idxv = idxv.blend(FloatVector.broadcast(S, i).addIndex(1), g); dlv = dlv.blend(r, g);
+                }
+                float bm = dlv.reduceLanes(VectorOperators.MIN);
+                if (bm == Float.POSITIVE_INFINITY) return -1;
+                float bi = Float.POSITIVE_INFINITY;
+                for (int k = 0; k < L; k++) if (dlv.lane(k) == bm && idxv.lane(k) < bi) bi = idxv.lane(k);
+                return (int) bi;
+            }
+            public int count(V3FPred pred) {
+                vg();
+                VectorSpecies<Float> S = FloatVector.SPECIES_PREFERRED;
+                int c = 0;
+                for (int i = 0; i < size; i += S.length()) {
+                    VectorMask<Float> m = S.indexInRange(i, size);
+                    c += pred.test(FloatVector.fromArray(S, xs, i, m), FloatVector.fromArray(S, ys, i, m), FloatVector.fromArray(S, zs, i, m)).and(m).trueCount();
+                }
+                return c;
+            }
+            public int cull(V3FPred pred, int[] out) {
+                vg();
+                if (out.length < size) throw new IllegalArgumentException("out too small: " + out.length + " < " + size);
+                VectorSpecies<Float> S = FloatVector.SPECIES_PREFERRED;
+                int n = size, c = 0;
+                for (int i = 0; i < n; i += S.length()) {
+                    VectorMask<Float> m = S.indexInRange(i, n);
+                    VectorMask<Float> g = pred.test(FloatVector.fromArray(S, xs, i, m), FloatVector.fromArray(S, ys, i, m), FloatVector.fromArray(S, zs, i, m)).and(m);
+                    long l = g.toLong();
+                    while (l != 0) { int k = Long.numberOfTrailingZeros(l); out[c++] = i + k; l &= l - 1; }
+                }
+                return c;
+            }
+            private static void vg() { if (!Platform.VECTOR_OK) throw new IllegalStateException("jdk.incubator.vector absent"); }
             @FunctionalInterface
             public static interface Op { void apply(Mutable m); }
+            @FunctionalInterface
+            public interface V3FMap { FloatVector apply(FloatVector x, FloatVector y, FloatVector z); }
+            @FunctionalInterface
+            public interface V3FPred { VectorMask<Float> test(FloatVector x, FloatVector y, FloatVector z); }
         }
     }
 }

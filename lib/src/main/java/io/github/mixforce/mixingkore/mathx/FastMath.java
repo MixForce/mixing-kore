@@ -5,7 +5,10 @@
 package io.github.mixforce.mixingkore.mathx;
 
 import io.github.mixforce.mixingkore.internal.Platform;
-import io.github.mixforce.mixingkore.internal.Simd;
+import jdk.incubator.vector.FloatVector;
+import jdk.incubator.vector.IntVector;
+import jdk.incubator.vector.VectorOperators;
+import jdk.incubator.vector.VectorSpecies;
 
 public final class FastMath {
     private FastMath() {}
@@ -224,16 +227,41 @@ public final class FastMath {
     }
 
     public static void softmax(float[] x, float[] o, int n) {
-        if (n >= VEC_MIN_N && Platform.VECTOR_OK) Simd.softmax(x, o, n);
-        else softmaxScalar(x, o, n);
-    }
-
-    private static void softmaxScalar(float[] x, float[] o, int n) {
+        if (Platform.VECTOR_OK && n >= VEC_MIN_N) { Simd.softmax(x, o, n); return; }
         float m = Float.NEGATIVE_INFINITY;
         for (int i = 0; i < n; i++) if (x[i] > m) m = x[i];
         float s = 0f;
         for (int i = 0; i < n; i++) s += o[i] = exp(x[i] - m);
         float inv = 1f / s;
         for (int i = 0; i < n; i++) o[i] *= inv;
+    }
+
+    private static final class Simd {
+        private Simd() {}
+
+        private static final VectorSpecies<Float> F = FloatVector.SPECIES_PREFERRED;
+        private static final float MAGIC = 0x1.8p23f, CLAMP = -87.0f;
+
+        static void softmax(float[] x, float[] o, int n) {
+            float m = Float.NEGATIVE_INFINITY;
+            for (int i = 0; i < n; i++) if (x[i] > m) m = x[i];
+            int lanes = F.length(), upper = F.loopBound(n);
+            FloatVector acc = FloatVector.zero(F);
+            for (int i = 0; i < upper; i += lanes) {
+                FloatVector vz = FloatVector.fromArray(F, x, i).sub(m).lanewise(VectorOperators.MAX, CLAMP);
+                FloatVector kf = vz.mul(LOG2E).add(MAGIC).sub(MAGIC); FloatVector vr = kf.lanewise(VectorOperators.FMA, -LN2H, vz);
+                vr = kf.lanewise(VectorOperators.FMA, -LN2L, vr);
+                FloatVector p = vr.fma(E4, E3);
+                p = vr.lanewise(VectorOperators.FMA, p, E2); p = vr.lanewise(VectorOperators.FMA, p, E1); p = vr.lanewise(VectorOperators.FMA, p, E0);
+                IntVector kb = (IntVector) kf.convert(VectorOperators.F2I, 0);
+                FloatVector ps = p.mul(kb.add(127).mul(1 << 23).viewAsFloatingLanes());
+                ps.intoArray(o, i); acc = acc.add(ps);
+            }
+            float s = acc.reduceLanes(VectorOperators.ADD);
+            for (int i = upper; i < n; i++) s += o[i] = exp(x[i] - m);
+            float inv = 1f / s;
+            for (int i = 0; i < upper; i += lanes) FloatVector.fromArray(F, o, i).mul(inv).intoArray(o, i);
+            for (int i = upper; i < n; i++) o[i] *= inv;
+        }
     }
 }

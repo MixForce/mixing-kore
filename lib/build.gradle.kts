@@ -66,7 +66,7 @@ tasks.jar {
 }
 tasks.withType<Javadoc> {
     val v = options as StandardJavadocDocletOptions
-    v.addStringOption("Xdoclint:none", "-quiet")
+    v.encoding = "UTF-8"; v.addStringOption("Xdoclint:none", "-quiet"); v.addStringOption("-add-modules", "jdk.incubator.vector")
     exclude("io/github/mixforce/mixingkore/internal/**")
 }
 tasks.withType<PublishToMavenRepository>().configureEach {
