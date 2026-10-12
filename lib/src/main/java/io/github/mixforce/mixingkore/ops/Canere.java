@@ -5,7 +5,6 @@
 package io.github.mixforce.mixingkore.ops;
 
 import io.github.mixforce.mixingkore.mathx.BitVec;
-import it.unimi.dsi.fastutil.ints.Int2IntLinkedOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Object2IntLinkedOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import it.unimi.dsi.fastutil.objects.Object2IntMaps;
@@ -24,6 +23,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 public final class Canere {
@@ -36,13 +36,11 @@ public final class Canere {
     }
     public static int level(ItemStack s, ResourceKey<Enchantment> k) {
         if (s.isEmpty()) return 0;
-        for (var e : exa(s).entrySet())
-            if (e.getKey().is(k)) return e.getIntValue();
+        for (var e : exa(s).entrySet()) if (e.getKey().is(k)) return e.getIntValue();
         return 0;
     }
     public static int level(Object2IntMap<Holder<Enchantment>> m, ResourceKey<Enchantment> k) {
-        for (var e : Object2IntMaps.fastIterable(m))
-            if (e.getKey().is(k)) return e.getIntValue();
+        for (var e : Object2IntMaps.fastIterable(m)) if (e.getKey().is(k)) return e.getIntValue();
         return 0;
     }
     public static boolean ifAll(ItemStack s, Collection<ResourceKey<Enchantment>> ks) {
@@ -50,8 +48,7 @@ public final class Canere {
         ItemEnchantments en = exa(s);
         for (ResourceKey<Enchantment> k : ks) {
             boolean f = false;
-            for (var e : en.entrySet())
-                if (e.getKey().is(k)) { f = true; break; }
+            for (var e : en.entrySet()) if (e.getKey().is(k)) { f = true; break; }
             if (!f) return false;
         }
         return true;
@@ -60,22 +57,18 @@ public final class Canere {
     public static boolean ifAll(ItemStack s, ResourceKey<Enchantment>... keys) { return ifAll(s, List.of(keys)); }
     public static boolean ifAny(ItemStack s, Collection<ResourceKey<Enchantment>> ks) {
         if (s.isEmpty() || ks.isEmpty()) return false;
-        for (var e : exa(s).entrySet())
-            for (ResourceKey<Enchantment> k : ks)
-                if (e.getKey().is(k)) return true;
+        for (var e : exa(s).entrySet()) for (ResourceKey<Enchantment> k : ks) if (e.getKey().is(k)) return true;
         return false;
     }
     @SafeVarargs
     public static boolean ifAny(ItemStack s, ResourceKey<Enchantment>... ks) { return ifAny(s, List.of(ks)); }
     public static boolean ifHas(ItemStack s, ResourceKey<Enchantment> k) {
         if (s.isEmpty()) return false;
-        for (var e : exa(s).entrySet())
-            if (e.getKey().is(k)) return true;
+        for (var e : exa(s).entrySet()) if (e.getKey().is(k)) return true;
         return false;
     }
     public static boolean ifHas(Object2IntMap<Holder<Enchantment>> m, ResourceKey<Enchantment> k) {
-        for (var e : Object2IntMaps.fastIterable(m))
-            if (e.getKey().is(k)) return true;
+        for (var e : Object2IntMaps.fastIterable(m)) if (e.getKey().is(k)) return true;
         return false;
     }
     public static ItemEnchantments exa(ItemStack s) { return s.getItem() == Items.ENCHANTED_BOOK ? s.getOrDefault(DataComponents.STORED_ENCHANTMENTS, ItemEnchantments.EMPTY) : s.getEnchantments(); }
@@ -138,8 +131,7 @@ public final class Canere {
             if (n > 0) warns.add("Truncated " + n + " max level" + (n > 1 ? "s" : "") + " to 15.");
             pool = new Optimizer.Pool(lex, ts.size() * 2 + 16);
             long[] lv = new long[Optimizer.LVW], pr = new long[Optimizer.PRW];
-            is = new int[ts.size()];
-            leafs = new String[ts.size()];
+            is = new int[ts.size()]; leafs = new String[ts.size()];
             for (int i = 0; i < ts.size(); i++) {
                 ItemStack s = ts.get(i);
                 Arrays.fill(lv, 0L); Arrays.fill(pr, 0L);
@@ -149,7 +141,7 @@ public final class Canere {
                     if (e < 64) pr[0] |= 1L << e; else pr[1] |= 1L << e;
                 }
                 int ty = s.getItem() == Items.ENCHANTED_BOOK ? 0 : 1;
-                is[i] = pool.intern(lv, pr, s.getOrDefault(DataComponents.REPAIR_COST, 0), ty);
+                is[i] = pool.intern(lv, pr, s.getOrDefault(DataComponents.REPAIR_COST, 0), ty, i == 0);
                 leafs[i] = i == 0 ? "T" : (ty == 0 ? "B" : s.getHoverName().getString());
             }
         }
@@ -157,9 +149,16 @@ public final class Canere {
         public List<String> warnings() {
             if (cfg == null) return List.of();
             List<String> out = new ArrayList<>(warns);
-            int rm = 0;
-            for (int i = 1; i < is.length; i++) if (!Optimizer.Prepare.usable(pool, lex, cfg.policy, is[0], is[i])) { rm++; }
-            if (rm > 0) out.add("Consumed " + rm + " useless material" + (rm > 1 ? "s" : "") + ".");
+            int rm = 0, k = 0; int[] us = new int[is.length - 1]; String[] un = new String[is.length - 1];
+            for (int i = 1; i < is.length; i++) {
+                if (Optimizer.Prepare.usable(pool, lex, cfg.policy, is[0], is[i])) { us[k] = is[i]; un[k] = leafs[i]; k++; }
+                else rm++;
+            }
+            if (k < us.length) { us = Arrays.copyOf(us, k); un = Arrays.copyOf(un, k); }
+            int sp = Optimizer.Prepare.surplus(pool, lex, is[0], us, un);
+            if (rm > 0 && sp > 0) out.add("Ignored " + rm + " useless and " + sp + " surplus materials.");
+            else if (rm > 0) out.add("Ignored " + rm + " useless material" + (rm > 1 ? "s" : "") + ".");
+            else if (sp > 0) out.add("Ignored " + sp + " surplus material" + (sp > 1 ? "s" : "") + ".");
             return out;
         }
         public Optimizer.Solution optimize() {
@@ -197,49 +196,939 @@ public final class Canere {
         // Bits
         static final int MAX = 128, LVW = 8, PRW = 2, MAX_LV = 15;
 
+        // いますぐ輪廻
+        static final int RETRY_NOW = 3; // 0.03% @3, 0.002% @4
+
+        // Pool
+        static final ExecutorService EX = Executors.newFixedThreadPool(Math.max(1, Runtime.getRuntime().availableProcessors()), r0 -> {
+            Thread th = new Thread(r0, "mixing-optimizer"); th.setPriority(Thread.NORM_PRIORITY + 1); th.setDaemon(true);
+            return th;
+        });
+
+        /** Config */
+        public record Policy(int limit) {
+            public Policy { if (limit < 1) throw new IllegalArgumentException("limit not valid"); }
+            public static final Policy VANILLA = new Policy(40);
+            public static final Policy UNLIMITED = new Policy(5000);
+        }
+        public static final class Config {
+            public int greedy = 8, topK = 3, bWidth = 24, bbLeaves = 14, lStall = 300, pIsm = 4; // 0 auto
+            public float bLambda = 1.0f;
+            public boolean beam = true, lns = true, bb = false, auto = false;
+            public long seed = 42, budget = 0 /* Ns */, bbNodes = 2000000L, bbGap = 8;
+            public Policy policy = Policy.VANILLA;
+            Config copy() {
+                Config c = new Config(); c.greedy = greedy; c.topK = topK; c.bWidth = bWidth; c.bbLeaves = bbLeaves; c.lStall = lStall; c.pIsm = pIsm; c.bLambda = bLambda; c.beam = beam; c.lns = lns; c.bb = bb; c.auto = auto; c.seed = seed; c.budget = budget; c.bbNodes = bbNodes; c.bbGap = bbGap; c.policy = policy;
+                return c;
+            }
+            /** Just adjusts configurations */
+            static void tune(Config cfg, int[] ss) {
+                if (!cfg.auto) return;
+                int[] c = ss.clone();
+                if (c.length <= 32) for (int i = 1; i < c.length; i++) { int x = c[i]; int j = i - 1; while (j >= 0 && c[j] > x) { c[j + 1] = c[j]; j--; } c[j + 1] = x; }
+                else Arrays.sort(c);
+                int m = 0;
+                for (int i = 0; i < c.length; i++) if (i == 0 || c[i] != c[i - 1]) m++;
+                if (m <= 10) {
+                    if (cfg.greedy < 8) cfg.greedy = 8;
+                    cfg.beam = false; cfg.lns = true; // cfg.bb = true;
+                } else if (m > 40) {
+                    cfg.lns = true; cfg.beam = true;
+                    if (cfg.greedy < 8) cfg.greedy = 8;
+                    if (cfg.bWidth == 24) cfg.bWidth = 12;
+                    if (cfg.lStall == 300) cfg.lStall = 600;
+                }
+            }
+        }
+
+        /** Result */
+        public static record Solution(Tr tr, Eval eval, boolean feasible, int starts, long ns, Metrics metrics, String fail) {
+            public long cost() { return feasible && eval != null ? eval.total : -1; }
+            public double gap() { return metrics == null ? Double.NaN : metrics.gap; }
+            public boolean proven() { return metrics != null && metrics.proven; }
+        }
+
+        record Metrics(long greedy, long beam, long lns, long bb, int reports, long lb0, long lbEst, double gap, boolean proven) {}
+        private record WRes(Tr tr, long gN, long bN, long lN, int rep) {}
+
+        /** Meta */
+        static Solution explore(Pool pool, int t, int[] mats, String[] ls, Config cfg) {
+            long t0 = System.nanoTime();
+            Prepare.Prepared prep = Prepare.apply(pool, cfg.policy, t, mats, Arrays.copyOfRange(ls, 1, ls.length));
+            if (!prep.ok) return new Solution(null, null, false, 0, System.nanoTime() - t0,  null, prep.fail);
+            Lock lc = Lock.of(pool, t, prep.ids());
+            Vanilla k = new Vanilla(pool.lex(), pool, cfg.policy, lc);
+            int nm = prep.ids().length;
+            int[] all = new int[nm + 1]; all[0] = t;
+            System.arraycopy(prep.ids(), 0, all, 1, nm);
+            String[] names = new String[nm + 1]; names[0] = ls[0];
+            System.arraycopy(prep.names(), 0, names, 1, nm);
+            Config tc = cfg.copy(); Config.tune(tc, all);
+            long lb0 = new Floor(pool, cfg.policy.limit, lc).compute(new WSet(pool, null, all), pool.type(all[0]));
+            if (lb0 < 0) return new Solution(null, null, false, 0, System.nanoTime() - t0, new Metrics(0, 0, 0, 0, 0, -1, -1, Double.NaN, false), "Infeasible.");
+            Height he = Height.of(pool, t, prep.ids());
+            long lb = he.lb, sn = he.lb >= 0 && pool.lex().pf && !he.risky ? he.lb : -1L;
+            boolean se = sn >= 0;
+            Evaluator ev = new Evaluator(k, pool, lc);
+            Ceiling ub = new Ceiling();
+            long tGreedy, tBeam, tLns;
+            int reports, dn, nw = tc.pIsm > 0 ? Math.max(1, tc.pIsm) : Math.min(8, Runtime.getRuntime().availableProcessors());
+            if (all.length == 1) nw = 1;
+            int sW = Math.max(20, (int) (tc.lStall / Math.sqrt(nw)));
+            long deadline = tc.budget > 0 ? t0 + tc.budget : 0;
+            WRes[] res = new WRes[nw];
+            String wn = null; AtomicLong sh = new AtomicLong(Long.MAX_VALUE);
+            AtomicInteger di = new AtomicInteger();
+            int gT = 1 + nw * (tc.greedy - 1);
+            final int NW = nw;
+            Future<?>[] fs = new Future<?>[nw];
+            for (int wk = 0; wk < nw; wk++) {
+                final int w = wk;
+                Pool fp = pool.fork();
+                fs[wk] = EX.submit(() -> res[w] = worker(fp, t, prep.ids(), names, tc, w, NW, di, gT, sW, deadline, sh, lc, sn));
+            }
+            for (Future<?> f : fs) {
+                try { f.get(); }
+                catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+                catch (ExecutionException e) { wn = String.valueOf(e.getCause()); e.getCause().printStackTrace(); }
+            }
+            long wG = 0, wB = 0, wL = 0; int rep = 0, ok = 0;
+            for (WRes r : res) {
+                if (r == null) continue;
+                rep += r.rep; wG = Math.max(wG, r.gN); wB = Math.max(wB, r.bN); wL = Math.max(wL, r.lN);
+                if (r.tr == null) continue;
+                Eval e = ev.evaluate(r.tr, null);
+                if (e.feasible) { ub.report(r.tr, e); ok++; }
+            }
+            tGreedy = wG; tBeam = wB; tLns = wL; reports = rep; dn = ok;
+            if (!ub.found()) {
+                Metrics st = new Metrics(tGreedy, tBeam, tLns, 0, reports, lb0, -1, Double.NaN, false);
+                return new Solution(null, null, false, dn, System.nanoTime() - t0, st, wn != null ? wn : "All " + dn + " failed.");
+            }
+            long al = se ? Math.max(0, ub.cost - lb) : Long.MIN_VALUE;
+            double gap = se ? (ub.cost > 0 ? (double) al / ub.cost : 0.0) : (ub.cost > 0 ? (double) (ub.cost - lb0) / ub.cost : Double.NaN);
+            boolean proven = se && ub.cost == lb;
+            long tBb = 0;
+            if (se && !proven && nm >= 2 && tc.bb && nm <= tc.bbLeaves && al <= tc.bbGap && (deadline == 0 || deadline - System.nanoTime() > (deadline - t0) / 4)) {
+                long tb0 = System.nanoTime();
+                proven = BranchBound.con(pool, k, ev, all, names, tc.bbNodes, deadline, tc.bLambda, ub);
+                tBb = System.nanoTime() - tb0;
+                if (proven) gap = 0.0;
+                else { al = Math.max(0, ub.cost - lb); gap = (double) al / ub.cost; }
+            }
+            Metrics st = new Metrics(tGreedy, tBeam, tLns, tBb, reports, lb0, lb, gap, proven);
+            return new Solution(ub.tr, ub.eval, true, dn, System.nanoTime() - t0, st, null);
+        }
+        static WRes worker(Pool pool, int t, int[] mats, String[] names, Config cfg, int wk, int nw, AtomicInteger di, int gT, int sW, long deadline, AtomicLong sh, Lock lc, long sn) {
+            Vanilla k = new Vanilla(pool.lex(), pool, cfg.policy, lc);
+            Evaluator ev = new Evaluator(k, pool, lc);
+            Floor fr = new Floor(pool, cfg.policy.limit, lc);
+            int[] a = new int[mats.length + 1]; a[0] = t;
+            System.arraycopy(mats, 0, a, 1, mats.length);
+            long q1 = cfg.budget > 0 ? deadline - cfg.budget * 3 / 4 : 0, q2 = cfg.budget > 0 ? deadline - cfg.budget / 2 : 0;
+            Ceiling ub = new Ceiling(); ub.ext = sh;
+            Eval sv = new Eval(2 * a.length - 1);
+            long seed = cfg.seed ^ (wk + 1) * 0x9E3779B97F4A7C15L, tg0 = System.nanoTime();
+            int g;
+            while ((g = di.getAndIncrement()) < gT) {
+                if (sn >= 0 && ub.bn() <= sn) break;
+                if (q1 > 0 && System.nanoTime() > q1) break;
+                Greedy.GRes gr;
+                if (g == 0) gr = Greedy.bkCon(pool, k, a, lc);
+                else {
+                    int rw = (g - 1) % nw, s = (g - 1) / nw + 1;
+                    gr = Greedy.con(pool, k, a, lc, Scorer.PRESETS[(s - 1 + rw) % Scorer.PRESETS.length], Math.max(1, cfg.topK), new Random(cfg.seed ^ (rw + 1) * 0x9E3779B97F4A7C15L ^ s * 0x9E3779B97F4A7C15L));
+                }
+                if (!gr.ok) continue;
+                Tr tr = new Tr(gr.l, gr.r, a, names);
+                Eval e = ev.evaluate(tr, sv);
+                if (e.feasible) ub.report(tr, e);
+            }
+            long tG = System.nanoTime() - tg0, tb0 = System.nanoTime();
+            if (cfg.beam && (wk == 0 || !ub.found())) Beam.con(pool, k, ev, fr, a, names, cfg.bWidth, cfg.bLambda, q2, ub, lc, sn);
+            long tB = System.nanoTime() - tb0, tl0 = System.nanoTime();
+            if (cfg.lns) {
+                Lns.con(pool, k, ev, fr, a, names, deadline, sW, seed ^ 0x5DEECE66DL, ub, lc, sn);
+                for (int i = 1; i < RETRY_NOW && sn >= 0 && ub.bn() > sn; i++) Lns.con(pool, k, ev, fr, a, names, deadline, sW, seed ^ 0x5DEECE66DL ^ (long) i * 0xD1B54A32D192ED03L, ub, lc, sn);
+            }
+            long tL = System.nanoTime() - tl0;
+            return new WRes(ub.tr, tG, tB, tL, ub.ver);
+        }
+
+        /** GRASP greedy */
+        static final class Greedy {
+            record GRes(int[] l, int[] r, boolean ok, int active, long cost, WSet ws) {}
+            static GRes con(Pool pool, Vanilla k, int[] ss, Lock lc, Scorer sc, int topK, Random r) { return con(pool, k, new WSet(pool, lc, ss, ss.length), sc, topK, r, new Ctx()); }
+            static GRes con(Pool pool, Vanilla k, WSet ws, Scorer sc, int topK, Random r, Ctx g) {
+                if (topK < 1) topK = 1;
+                if (topK > 8) topK = 8;
+                g.reset(); g.lc = ws.lc; g.wv = ws.lc != null && ((ws.lc.w0 | ws.lc.w1) != 0);
+                int len = ws.cnt;
+                if (g.seenK < len) { g.seen = new PairSeen(4 * len * len); g.seenK = len; }
+                long total = ws.cost; g.seen.round();
+                int n = len;
+                for (int i = 0; i < n; i++) for (int j = i + 1; j < n; j++) {
+                    int u = ws.liveV[i], v = ws.liveV[j];
+                    if (u == v) {
+                        if (ws.idCnt[u] >= 2 && !g.seen.seen(pkey(u, v))) {
+                            k.probe(u, v, g.pb);
+                            if (g.pb.ok && Lock.ok(ws.lc, ws.p, g.pb.p)) push(g, g.score(pool, sc, u, v, g.pb), u, v);
+                        }
+                        continue;
+                    }
+                    if (!g.seen.seen(pkey(u, v))) {
+                        k.probe(u, v, g.pb);
+                        if (g.pb.ok && Lock.ok(ws.lc, ws.p, g.pb.p)) push(g, g.score(pool, sc, u, v, g.pb), u, v);
+                    }
+                    if (!g.seen.seen(pkey(v, u))) {
+                        k.probe(v, u, g.pb);
+                        if (g.pb.ok && Lock.ok(ws.lc, ws.p, g.pb.p)) push(g, g.score(pool, sc, v, u, g.pb), v, u);
+                    }
+                }
+                while (ws.cnt > 1) {
+                    int pu, pv, pd;
+                    if (topK == 1) {
+                        pu = -1; pv = -1; pd = 0;
+                        while (g.hs > 0) {
+                            long key = pop(g);
+                            int s = (int) key, u = g.sqU[s], v = g.sqV[s];
+                            if (!livePair(ws, u, v)) continue;
+                            k.probe(u, v, g.pb);
+                            if (!g.pb.ok || !Lock.ok(ws.lc, ws.p, g.pb.p)) continue;
+                            pu = u; pv = v; pd = (int) (key >>> 32);
+                            break;
+                        }
+                        if (pu < 0) return new GRes(null, null, false, ws.cnt, -1, ws);
+                    } else {
+                        int fi = 0;
+                        while (g.hs > 0 && fi < topK) {
+                            long key = pop(g);
+                            int s = (int) key, u = g.sqU[s], v = g.sqV[s];
+                            if (!livePair(ws, u, v)) continue;
+                            g.pkU[fi] = u; g.pkV[fi] = v; g.pkO[fi] = (int) (key >>> 32); fi++;
+                        }
+                        if (fi == 0) return new GRes(null, null, false, ws.cnt, -1, ws);
+                        int p = fi == 1 ? 0 : r.nextInt(fi);
+                        pu = g.pkU[p]; pv = g.pkV[p]; pd = g.pkO[p];
+                        for (int t2 = 0; t2 < fi; t2++) if (t2 != p) { pushRaw(g, g.pkO[t2], g.pkU[t2], g.pkV[t2]); }
+                    }
+                    k.probe(pu, pv, g.pb);
+                    if (!g.pb.ok || !Lock.ok(ws.lc, ws.p, g.pb.p)) continue;
+                    int nid = k.commit(g.pb); total += g.pb.cost; ws.cost += g.pb.cost;
+                    int pp = RefSeq.at(ws, pu, -1), pq = RefSeq.at(ws, pv, pp);
+                    if (pp < 0 || pq < 0) return new GRes(null, null, false, ws.cnt, -1, ws);
+                    if (pp < pq) ws.take(pp, pq, 0, nid, g.pb.p); else ws.take(pq, pp, 1, nid, g.pb.p);
+                    if (livePair(ws, pu, pv)) pushRaw(g, pd, pu, pv);
+                    g.seen.round();
+                    for (int p2 = 0; p2 < ws.cnt; p2++) {
+                        int x2 = ws.liveV[p2];
+                        if (!g.seen.seen(pkey(nid, x2))) {
+                            k.probe(nid, x2, g.pb);
+                            if (g.pb.ok && Lock.ok(ws.lc, ws.p, g.pb.p)) push(g, g.score(pool, sc, nid, x2, g.pb), nid, x2);
+                        }
+                        if (x2 != nid && !g.seen.seen(pkey(x2, nid))) {
+                            k.probe(x2, nid, g.pb);
+                            if (g.pb.ok && Lock.ok(ws.lc, ws.p, g.pb.p)) push(g, g.score(pool, sc, x2, nid, g.pb), x2, nid);
+                        }
+                    }
+                }
+                return new GRes(ws.L, ws.R, true, 1, total, ws);
+            }
+            /** Book first heuristic */
+            static GRes bkCon(Pool pool, Vanilla k, int[] ss, Lock lc) {
+                WSet ws = new WSet(pool, lc, ss);
+                if (ws.cnt <= 1) return new GRes(ws.L, ws.R, true, 1, ws.cost, ws);
+                Probe pb = new Probe();
+                Lexicon t = pool.lex();
+                int tn = 0;
+                if (lc != null) {
+                    int[] is = new int[ws.cnt], clv = new int[ws.cnt];
+                    for (int i = 0; i < lc.ev.length && ws.cnt >= 2; i++) {
+                        int e = lc.ev[i] >>> 4, n2 = lc.ev[i] & 15, m = 0;
+                        for (int p = 0; p < ws.cnt; p++) {
+                            int u = ws.liveV[p], lu = pool.level(u, e);
+                            if (lu > 0 && lu < n2) { is[m] = u; clv[m] = lu; m++; }
+                        }
+                        sortCo(pool, is, clv, m);
+                        while (m >= 2) {
+                            int bu = -1, bv = -1, plv = 0;
+                            sx: for (int p = 0; p < m; p++) for (int q = p + 1; q < m; q++) {
+                                if (clv[p] != clv[q]) continue;
+                                int u = is[p], v = is[q];
+                                if (u == v && ws.idCnt[u] < 2) continue;
+                                boolean ubk = pool.ifBook(u), vbk = pool.ifBook(v), au = Lock.applies(pool, t, u, e, e >>> 6, 1L << (e & 63)), av = Lock.applies(pool, t, v, e, e >>> 6, 1L << (e & 63));
+                                if (!au && !av) continue;
+                                int l2, r2;
+                                if (ubk != vbk) {
+                                    l2 = ubk ? v : u; r2 = l2 == u ? v : u;
+                                    if (!(ubk ? av : au)) continue;
+                                } else { l2 = au ? u : v; r2 = l2 == u ? v : u; }
+                                k.probe(l2, r2, pb);
+                                if (!pb.ok && ubk == vbk && au && av) {
+                                    k.probe(r2, l2, pb);
+                                    if (pb.ok) { int x = l2; l2 = r2; r2 = x; }
+                                }
+                                if (!pb.ok || !Lock.ok(lc, ws.p, pb.p)) continue;
+                                bu = l2; bv = r2; plv = clv[p];
+                                break sx;
+                            }
+                            if (bu < 0) break;
+                            int lp = ws.at(bu, -1), rp = ws.at(bv, lp);
+                            if (lp < 0 || rp < 0) return con(pool, k, ss, lc, Scorer.COST, 1, new Random(0));
+                            int a = ws.liveS[lp], b2 = ws.liveS[rp], ns = merge(k, ws, pb, lp, rp);
+                            if (ns < 0) return con(pool, k, ss, lc, Scorer.COST, 1, new Random(0));
+                            if (a == tn || b2 == tn) tn = ns;
+                            int nid = ws.liveV[ws.pos(ns)], rm = bu == bv ? 2 : 1;
+                            for (int rr = 0; rr < rm; rr++) { int ri = 0; while (is[ri] != bu) ri++; is[ri] = is[--m]; clv[ri] = clv[m]; }
+                            if (bu != bv) { int ri = 0; while (is[ri] != bv) ri++; is[ri] = is[--m]; clv[ri] = clv[m]; }
+                            if (plv + 1 < n2) { is[m] = nid; clv[m] = plv + 1; m++; }
+                        }
+                    }
+                }
+                int[] nbk = new int[ws.cnt]; int nn = 0;
+                for (int i = 0; i < ws.cnt; i++) if (ws.liveS[i] != tn && !pool.ifBook(ws.liveV[i])) nbk[nn++] = ws.liveS[i];
+                int[] gh = new int[nn]; int ng = 0, g = -1, gH = -1;
+                sortCw(pool, ws, nbk, nn, 1);
+                for (int i = 0; i < nn; i++) {
+                    int ty = pool.type(ws.liveV[ws.pos(nbk[i])]);
+                    if (ty != g) {
+                        if (gH >= 0) gh[ng++] = gH;
+                        g = ty; gH = nbk[i];
+                        continue;
+                    }
+                    int ns = merge(k, ws, pb, ws.pos(gH), ws.pos(nbk[i]));
+                    if (ns < 0) return con(pool, k, ss, lc, Scorer.COST, 1, new Random(0));
+                    gH = ns;
+                }
+                if (gH >= 0) gh[ng++] = gH;
+                int[] ac = new int[ws.cnt]; int na = 0;
+                for (int i = 0; i < ws.cnt; i++) if (ws.liveS[i] != tn && pool.ifBook(ws.liveV[i])) ac[na++] = ws.liveS[i];
+                int[] fx = new int[na]; int nf = 0;
+                float[] cb = new float[0];
+                final long lm = k.limit();
+                while (na >= 2) {
+                    sortCw(pool, ws, ac, na, -1);
+                    if (abs(pool, ws, tn, ac, na, fx, nf, gh, ng, cb, lm)) break;
+                    int[] n = new int[na]; int q = 0;
+                    for (int lo = 0, hi = na - 1; lo < hi; lo++, hi--) {
+                        int ns = merge(k, ws, pb, ws.pos(ac[hi]), ws.pos(ac[lo]));
+                        if (ns < 0) ns = merge(k, ws, pb, ws.pos(ac[lo]), ws.pos(ac[hi]));
+                        if (ns < 0) { fx[nf++] = ac[lo]; fx[nf++] = ac[hi]; }
+                        else n[q++] = ns;
+                    }
+                    if ((na & 1) != 0) n[q++] = ac[na >> 1];
+                    ac = n; na = q;
+                }
+                int[] hd = new int[na + nf + ng]; int m = 0;
+                for (int i = 0; i < na; i++) hd[m++] = ac[i];
+                for (int i = 0; i < nf; i++) hd[m++] = fx[i];
+                for (int i = 0; i < ng; i++) hd[m++] = gh[i];
+                sortHs(pool, ws, hd, m);
+                int tx = tn;
+                for (int i = 0; i < m; i++) {
+                    int ns = merge(k, ws, pb, ws.pos(tx), ws.pos(hd[i]));
+                    if (ns < 0) return con(pool, k, ss, lc, Scorer.COST, 1, new Random(0));
+                    tx = ns;
+                }
+                if (ws.cnt != 1) return con(pool, k, ss, lc, Scorer.COST, 1, new Random(0));
+                return new GRes(ws.L, ws.R, true, 1, ws.cost, ws);
+            }
+            static final class Ctx {
+                long[] hp = new long[256]; int hs;
+                int[] sqU = new int[256], sqV = new int[256]; int sqN;
+                float[] cwB = new float[0];
+                PairSeen seen; int seenK; Lock lc; boolean wv;
+                final Probe pb = new Probe();
+                final int[] pkU = new int[8], pkV = new int[8], pkO = new int[8];
+                void reset() { hs = 0; sqN = 0; }
+                float score(Pool pool, Scorer sc, int u, int v, Probe pb) {
+                    float s = sc.cost * pb.cost + sc.penNew * pb.newPenalty + sc.conf * pb.conflicts - sc.upg * pb.upgraded;
+                    if (sc.penSum != 0) s += sc.penSum * (pool.penalty(u) + pool.penalty(v));
+                    if (wv) s += waste(pool, u, v);
+                    if (sc.cw != 0) {
+                        cwB = cw(pool, cwB, u); cwB = cw(pool, cwB, v);
+                        if (sc.cw > 0) s += sc.cw * (cwB[u] + cwB[v]);
+                        else if (pool.penalty(u) == 0 && pool.penalty(v) == 0 && pool.ifBook(u) && pool.ifBook(v)) s += sc.cw * cwB[v];
+                    }
+                    return s;
+                }
+                float waste(Pool pool, int u, int v) {
+                    Lexicon t = pool.lex();
+                    float w = 0;
+                    int ub = u * PRW, tu = pool.typ[u];
+                    boolean bk = t.book[tu];
+                    long p0 = pool.pr[ub], p1 = pool.pr[ub + 1], x = lc.w0 & pool.pr[v * PRW];
+                    while (x != 0) { int e = Long.numberOfTrailingZeros(x); x &= x - 1; w += wv(pool, t, u, v, e, bk, tu, p0, p1); }
+                    x = lc.w1 & pool.pr[v * PRW + 1];
+                    while (x != 0) { int e = 64 + Long.numberOfTrailingZeros(x); x &= x - 1; w += wv(pool, t, u, v, e, bk, tu, p0, p1); }
+                    return w;
+                }
+                static float wv(Pool pool, Lexicon t, int u, int v, int e, boolean bk, int tu, long p0, long p1) {
+                    int eb = e * PRW;
+                    if (((t.conflict[eb] & p0) | (t.conflict[eb + 1] & p1)) != 0) return 0;
+                    if (!bk && !t.ifApply(tu, e)) return 0;
+                    int lv = pool.level(v, e), lu = pool.level(u, e), nl = lu == lv ? lv + 1 : Math.max(lu, lv), mx = t.maxLv[e];
+                    if (nl > mx) nl = mx;
+                    return nl == lu ? 1L << (lv - 1) : 0;
+                }
+            }
+            static boolean abs(Pool pool, WSet ws, int tn, int[] ac, int na, int[] fx, int nf, int[] gh, int ng, float[] cb, long lm) {
+                long p = pool.penalty(ws.liveV[ws.pos(tn)]);
+                long[] key = new long[na + nf + ng];
+                int q = 0;
+                for (int i = 0; i < na; i++) { int id = ws.liveV[ws.pos(ac[i])]; cb = cw(pool, cb, id); key[q++] = ((long) pool.penalty(id) << 32) | Float.floatToRawIntBits(cb[id]); }
+                for (int i = 0; i < nf; i++) { int id = ws.liveV[ws.pos(fx[i])]; cb = cw(pool, cb, id); key[q++] = ((long) pool.penalty(id) << 32) | Float.floatToRawIntBits(cb[id]); }
+                for (int i = 0; i < ng; i++) { int id = ws.liveV[ws.pos(gh[i])]; cb = cw(pool, cb, id); key[q++] = ((long) pool.penalty(id) << 32) | Float.floatToRawIntBits(cb[id]); }
+                Arrays.sort(key, 0, q);
+                for (int i = 0; i < q; i++) {
+                    long l = key[i] >>> 32;
+                    if (p + l + (long) Float.intBitsToFloat((int) key[i]) >= lm) return false;
+                    p = Math.min(2 * Math.max(p, l) + 1, 1L << 40);
+                }
+                return true;
+            }
+            static int merge(Vanilla k, WSet ws, Probe pb, int lp, int rp) {
+                k.probe(ws.liveV[lp], ws.liveV[rp], pb);
+                if (!pb.ok || !Lock.ok(k.lc, ws.p, pb.p)) return -1;
+                int nid = k.commit(pb); ws.cost += pb.cost;
+                int i = Math.min(lp, rp), j = Math.max(lp, rp);
+                ws.take(i, j, lp < rp ? 0 : 1, nid, pb.p);
+                return ws.liveS[i];
+            }
+            static long pkey(int u, int v) { return ((long) u << 32 | v) + 1L; }
+            static void push(Ctx g, float s, int u, int v) {
+                int bits = Float.floatToRawIntBits(s);
+                pushRaw(g, bits ^ ((bits >> 31) | 0x80000000), u, v);
+            }
+            static void pushRaw(Ctx g, int ord, int u, int v) {
+                if (g.sqN == g.sqU.length) { g.sqU = Arrays.copyOf(g.sqU, g.sqN * 2); g.sqV = Arrays.copyOf(g.sqV, g.sqN * 2); }
+                long key = ((long) ord << 32) | g.sqN;
+                g.sqU[g.sqN] = u; g.sqV[g.sqN] = v; g.sqN++;
+                if (g.hs == g.hp.length) g.hp = Arrays.copyOf(g.hp, g.hs * 2);
+                int i = g.hs++;
+                while (i > 0) {
+                    int p2 = (i - 1) >> 1;
+                    if (g.hp[p2] <= key) break;
+                    g.hp[i] = g.hp[p2]; i = p2;
+                }
+                g.hp[i] = key;
+            }
+            static long pop(Ctx g) {
+                long lt = g.hp[0], ls = g.hp[--g.hs];
+                int i = 0;
+                while (true) {
+                    int c = 2 * i + 1;
+                    if (c >= g.hs) break;
+                    if (c + 1 < g.hs && g.hp[c + 1] < g.hp[c]) c++;
+                    if (g.hp[c] >= ls) break;
+                    g.hp[i] = g.hp[c]; i = c;
+                }
+                if (g.hs > 0) g.hp[i] = ls;
+                return lt;
+            }
+            static boolean livePair(WSet ws, int u, int v) {
+                int cu = ws.idCnt[u], cv = ws.idCnt[v];
+                return cu > 0 && cv > 0 && (u != v || cu >= 2);
+            }
+            static float[] cw(Pool pool, float[] buf, int id) {
+                if (id >= buf.length) buf = Arrays.copyOf(buf, Math.max(pool.size(), id + 1));
+                if (buf[id] != 0) return buf;
+                Lexicon t = pool.lex();
+                float[] v = {pool.penalty(id)};
+                boolean bk = pool.ifBook(id);
+                pool.view(id).forEach((e, lv) -> v[0] += (bk ? t.baCost(e) : t.aCost(e)) * lv); buf[id] = v[0];
+                return buf;
+            }
+            static float bkCw(Pool pool, int id) {
+                Lexicon t = pool.lex();
+                float[] v = {pool.penalty(id)};
+                boolean bk = pool.ifBook(id);
+                pool.view(id).forEach((e, lv) -> v[0] += (bk ? t.baCost(e) : t.aCost(e)) * lv);
+                return v[0];
+            }
+            static void sortCo(Pool pool, int[] is, int[] clv, int m) {
+                if (m < 2) return;
+                float[] cws = new float[m];
+                for (int i = 0; i < m; i++) cws[i] = bkCw(pool, is[i]);
+                for (int i = 1; i < m; i++) {
+                    int x = is[i], xl = clv[i]; float cx = cws[i]; int j = i - 1;
+                    while (j >= 0 && cws[j] > cx) { is[j + 1] = is[j]; clv[j + 1] = clv[j]; cws[j + 1] = cws[j]; j--; }
+                    is[j + 1] = x; clv[j + 1] = xl; cws[j + 1] = cx;
+                }
+            }
+            static void sortCw(Pool pool, WSet ws, int[] idx, int len, int m) {
+                if (len < 2) return;
+                float[] cws = new float[len]; int[] ids = new int[len];
+                for (int i = 0; i < len; i++) { ids[i] = ws.liveV[ws.pos(idx[i])]; cws[i] = bkCw(pool, ids[i]); }
+                for (int i = 1; i < len; i++) {
+                    int x = idx[i], xi = ids[i], tx = m == 1 ? pool.type(xi) : 0, j = i - 1;
+                    float cx = cws[i];
+                    while (j >= 0) {
+                        int y = idx[j], yi = ids[j]; float cy = cws[j];
+                        if (m == 1 ? (pool.type(yi) > tx || (pool.type(yi) == tx && cy > cx)) : cy > cx) { idx[j + 1] = y; cws[j + 1] = cy; ids[j + 1] = yi; j--; }
+                        else break;
+                    }
+                    idx[j + 1] = x; cws[j + 1] = cx; ids[j + 1] = xi;
+                }
+            }
+            static void sortHs(Pool pool, WSet ws, int[] heads, int len) {
+                if (len < 2) return;
+                float[] cws = new float[len]; int[] ps = new int[len];
+                for (int i = 0; i < len; i++) { int id = ws.liveV[ws.pos(heads[i])]; cws[i] = bkCw(pool, id); ps[i] = pool.penalty(id); }
+                for (int i = 1; i < len; i++) {
+                    int x = heads[i], px = ps[i]; float cx = cws[i]; int j = i - 1;
+                    while (j >= 0 && (ps[j] > px || (ps[j] == px && cws[j] > cx))) { heads[j + 1] = heads[j]; ps[j + 1] = ps[j]; cws[j + 1] = cws[j]; j--; }
+                    heads[j + 1] = x; ps[j + 1] = px; cws[j + 1] = cx;
+                }
+            }
+        }
+
+        /** Beam search */
+        static final class Beam {
+            static void con(Pool pool, Vanilla k, Evaluator ev, Floor fr, int[] ss, String[] names, int B, float lambda, long deadline, Ceiling ub, Lock lc, long sn) {
+                if (B < 1) B = 1;
+                final int type = pool.type(ss[0]);
+                Eval sv = new Eval(2 * ss.length - 1);
+                WSet w0 = new WSet(pool, lc, ss);
+                Probe pb = new Probe();
+                if (w0.cnt == 1) { Tr p = w0.trs(ss, names); ub.report(p, ev.evaluate(p, sv)); return; }
+                WSet[] beam = {w0}; Cand[] tl = {new Cand(B)};
+                begin(k, lc, lambda, w0, tl[0], pb);
+                float[] cs = new float[B]; int[] cp = new int[B], ct = new int[B];
+                Mem tr = new Mem(1 << 13);
+                WSet[] f = new WSet[2 * B + 1]; int fn = 0; Cand[] tf = new Cand[2 * B + 1]; int tfn = 0;
+                while (beam.length > 0) {
+                    if (sn >= 0 && ub.bn() <= sn) return;
+                    if (deadline > 0 && System.nanoTime() > deadline) return;
+                    long ln = ub.bn(); int fi = 0;
+                    for (int pi = 0; pi < beam.length; pi++) {
+                        WSet w = beam[pi];
+                        if (ln < Long.MAX_VALUE) {
+                            long lb = fr.compute(w, type);
+                            if (lb < 0 || w.cost + lb >= ln) continue;
+                        }
+                        if (fi == B) {
+                            int mp = Integer.MAX_VALUE;
+                            for (int i2 = 0; i2 < w.cnt; i2++) { int pq = pool.pen[w.liveV[i2]]; if (pq < mp) mp = pq; }
+                            if (w.cost + 2f * mp + lambda * (2f * mp + 1f) >= cs[B - 1]) continue;
+                        }
+                        Cand c = tl[pi];
+                        for (int ti = 0; ti < c.n; ti++) {
+                            float s = c.sc[ti];
+                            if (fi < B || s < cs[B - 1]) {
+                                int p2 = Math.min(fi, B - 1);
+                                while (p2 > 0 && cs[p2 - 1] > s) { cs[p2] = cs[p2 - 1]; cp[p2] = cp[p2 - 1]; ct[p2] = ct[p2 - 1]; p2--; }
+                                cs[p2] = s; cp[p2] = pi; ct[p2] = ti;
+                                if (fi < B) fi++;
+                            }
+                        }
+                    }
+                    if (fi == 0) return;
+                    WSet[] nw = new WSet[fi]; Cand[] nc = new Cand[fi]; int nn = 0;
+                    for (int c2 = 0; c2 < fi; c2++) {
+                        WSet src = beam[cp[c2]], w = fn > 0 ? f[--fn] : null;
+                        if (w == null) w = src.copy(); else w.copyFrom(src);
+                        Cand ec = tl[cp[c2]];
+                        int l = ec.l[ct[c2]], r = ec.r[ct[c2]], pl = w.at(l, -1), pr = w.at(r, pl);
+                        if (pl < 0 || pr < 0) { if (fn < f.length) f[fn++] = w; continue; }
+                        k.probe(l, r, pb);
+                        if (!pb.ok) { if (fn < f.length) f[fn++] = w; continue; }
+                        int nid = k.commit(pb); w.cost += pb.cost;
+                        int i0;
+                        if (pl < pr) { i0 = pl; w.take(pl, pr, 0, nid, pb.p); } else { i0 = pr; w.take(pr, pl, 1, nid, pb.p); }
+                        if (w.cnt == 1) {
+                            Tr tr1 = w.trs(ss, names);
+                            ub.report(tr1, ev.evaluate(tr1, sv));
+                            if (fn < f.length) f[fn++] = w;
+                            continue;
+                        }
+                        if (tr.dominated(w.msh, w.cost)) { if (fn < f.length) f[fn++] = w; continue; }
+                        Cand c = tfn > 0 ? tf[--tfn] : null;
+                        if (c == null) c = new Cand(B); else c.clear();
+                        fill(k, lc, lambda, w, ec, c, nid, i0, pb);
+                        nw[nn] = w; nc[nn] = c; nn++;
+                    }
+                    for (int pi2 = 0; pi2 < beam.length; pi2++) {
+                        if (fn < f.length) f[fn++] = beam[pi2];
+                        if (tfn < tf.length) tf[tfn++] = tl[pi2];
+                    }
+                    beam = nn == 0 ? new WSet[0] : (nn == nw.length ? nw : Arrays.copyOf(nw, nn));
+                    tl = nn == 0 ? new Cand[0] : (nn == nc.length ? nc : Arrays.copyOf(nc, nn));
+                }
+            }
+            static final class Cand {
+                final int cap;
+                int n;
+                final float[] sc;
+                final int[] l, r;
+                Cand(int cap) { this.cap = cap; sc = new float[cap]; l = new int[cap]; r = new int[cap]; }
+                void clear() { n = 0; }
+                boolean before(float s, int l, int r, int i) {
+                    if (s != sc[i]) return s < sc[i];
+                    if (l != this.l[i]) return l < this.l[i];
+                    return r < this.r[i];
+                }
+                void insert(float s, int l, int r) {
+                    int i = n;
+                    if (i == cap) {
+                        if (!before(s, l, r, cap - 1)) return;
+                        i = cap - 1;
+                    }
+                    while (i > 0 && before(s, l, r, i - 1)) { sc[i] = sc[i - 1]; this.l[i] = this.l[i - 1]; this.r[i] = this.r[i - 1]; i--; }
+                    sc[i] = s; this.l[i] = l; this.r[i] = r;
+                    if (n < cap) n++;
+                }
+            }
+            static void begin(Vanilla k, Lock lc, float lambda, WSet w, Cand t, Probe pb) {
+                t.clear();
+                int n = w.cnt;
+                for (int i = 0; i < n; i++) for (int j = i + 1; j < n; j++) {
+                    int u = w.liveV[i], v = w.liveV[j];
+                    push(k, lc, lambda, w, t, u, v, pb);
+                    if (u != v) push(k, lc, lambda, w, t, v, u, pb);
+                }
+            }
+            static void push(Vanilla k, Lock lc, float lambda, WSet w, Cand t, int u, int v, Probe pb) {
+                k.probe(u, v, pb);
+                if (!pb.ok || !Lock.ok(lc, w.p, pb.p)) return;
+                t.insert(w.cost + pb.cost + lambda * pb.newPenalty + 0.25f * pb.conflicts, u, v);
+            }
+            static void fill(Vanilla k, Lock lc, float lambda, WSet w, Cand et, Cand t, int nid, int i0, Probe pb) {
+                t.clear();
+                for (int ti = 0; ti < et.n; ti++) {
+                    int el = et.l[ti], er = et.r[ti], cu = w.idCnt[el], cv = w.idCnt[er];
+                    if (!(cu > 0 && cv > 0 && (el != er || cu >= 2))) continue;
+                    k.probe(el, er, pb);
+                    if (!pb.ok || !Lock.ok(lc, w.p, pb.p)) continue;
+                    t.insert(w.cost + pb.cost + lambda * pb.newPenalty + 0.25f * pb.conflicts, el, er);
+                }
+                int cnt = w.cnt;
+                for (int p = 0; p < cnt; p++) {
+                    if (p == i0) continue;
+                    int x = w.liveV[p];
+                    push(k, lc, lambda, w, t, nid, x, pb);
+                    if (x != nid) push(k, lc, lambda, w, t, x, nid, pb);
+                }
+            }
+        }
+
+        /** B&B */
+        static final class BranchBound {
+            static boolean con(Pool pool, Vanilla k, Evaluator ev, int[] ss, String[] names, long budget, long deadline, float lambda, Ceiling ub) { return con(pool, k, ev, new WSet(pool, k.lc, ss), ss, names, budget, deadline, lambda, ub); }
+            static boolean con(Pool pool, Vanilla k, Evaluator ev, WSet w0, int[] ss, String[] names, long budget, long deadline, float lambda, Ceiling ub) {
+                if (w0.cnt == 1) {
+                    Tr p = w0.trs(ss, names);
+                    ub.report(p, ev.evaluate(p, null));
+                    return true;
+                }
+                Ctx cx = new Ctx(k, ev, ss, names, budget, deadline, lambda, ub);
+                dfs(cx, w0);
+                return !cx.abort;
+            }
+            static final class Ctx {
+                final Vanilla k; final Evaluator ev; final Floor fr;
+                final int[] ss; final String[] names; final int type;
+                final float lambda; final long deadline, budget;
+                final Ceiling ub;
+                final Mem tr;
+                final Probe pb = new Probe();
+                final Eval sc;
+                final int cc;
+                final float[][] bs; final int[][] bi, bj, bd;
+                final int[] fCnt, fCur, fSi, fVi, fSj, fVj;
+                final long[] fCost, fMsh;
+                final long[][] fp;
+                long nodes; boolean abort;
+                Ctx(Vanilla k, Evaluator ev, int[] ss, String[] names, long budget, long deadline, float lambda, Ceiling ub) {
+                    this.k = k; this.ev = ev; this.ss = ss; this.names = names;
+                    this.budget = budget; this.deadline = deadline; this.lambda = lambda; this.ub = ub;
+                    tr = new Mem(Math.clamp(budget, 4096, 1 << 21));
+                    fr = new Floor(k.pool, k.limit(), k.lc);
+                    type = k.pool.type(ss[0]);
+                    int n = ss.length;
+                    if (n > 32) throw new IllegalStateException("B&B supports at most 32 leaves");
+                    cc = n * (n - 1);
+                    bs = new float[n][cc]; bi = new int[n][cc]; bj = new int[n][cc]; bd = new int[n][cc];
+                    sc = new Eval(2 * n - 1);
+                    fCnt = new int[n]; fCur = new int[n]; fSi = new int[n]; fVi = new int[n]; fSj = new int[n]; fVj = new int[n]; fCost = new long[n]; fMsh = new long[n];
+                    fp = k.lc == null ? null : new long[n][k.lc.ev.length];
+                }
+            }
+            static void dfs(Ctx cx, WSet w) {
+                if (++cx.nodes > cx.budget || (cx.nodes & 511) == 0 && cx.deadline > 0 && System.nanoTime() > cx.deadline) { cx.abort = true; return; }
+                if (w.cnt == 1) {
+                    Tr p = w.trs(cx.ss, cx.names);
+                    cx.ub.report(p, cx.ev.evaluate(p, cx.sc));
+                    return;
+                }
+                long lbv = cx.fr.compute(w, cx.type);
+                if (lbv < 0) return;
+                if (cx.ub.found() && w.cost + lbv >= cx.ub.cost) return;
+                if (cx.tr.dominated(w.msh, w.cost)) return;
+                int dep = w.cur - cx.ss.length, cc = cx.cc;
+                float[] bs = cx.bs[dep]; int[] bi = cx.bi[dep], bj = cx.bj[dep], bd = cx.bd[dep];
+                int found = 0;
+                for (int i = 0; i < w.cnt; i++) for (int j = i + 1; j < w.cnt; j++)
+                    for (int d = 0; d < 2; d++) {
+                        int u = d == 0 ? w.liveV[i] : w.liveV[j], v = d == 0 ? w.liveV[j] : w.liveV[i];
+                        cx.k.probe(u, v, cx.pb);
+                        if (!cx.pb.ok || !Lock.ok(cx.k.lc, w.p, cx.pb.p)) continue;
+                        float s = cx.pb.cost + cx.lambda * cx.pb.newPenalty;
+                        if (found < cc || s < bs[cc - 1]) {
+                            int p2 = Math.min(found, cc - 1);
+                            while (p2 > 0 && bs[p2 - 1] > s) { bs[p2] = bs[p2 - 1]; bi[p2] = bi[p2 - 1]; bj[p2] = bj[p2 - 1]; bd[p2] = bd[p2 - 1]; p2--; }
+                            bs[p2] = s; bi[p2] = i; bj[p2] = j; bd[p2] = d;
+                            if (found < cc) found++;
+                        }
+                    }
+                for (int c2 = 0; c2 < found && !cx.abort; c2++) {
+                    int i = bi[c2], j = bj[c2], d = bd[c2];
+                    int u = d == 0 ? w.liveV[i] : w.liveV[j], v = d == 0 ? w.liveV[j] : w.liveV[i];
+                    cx.k.probe(u, v, cx.pb);
+                    if (!cx.pb.ok) continue;
+                    int nid = cx.k.commit(cx.pb);
+                    cx.fCnt[dep] = w.cnt; cx.fCur[dep] = w.cur; cx.fCost[dep] = w.cost; cx.fMsh[dep] = w.msh;
+                    cx.fSi[dep] = w.liveS[i]; cx.fVi[dep] = w.liveV[i];
+                    cx.fSj[dep] = w.liveS[j]; cx.fVj[dep] = w.liveV[j];
+                    if (w.p != null) System.arraycopy(w.p, 0, cx.fp[dep], 0, w.p.length);
+                    w.cost += cx.pb.cost;
+                    w.take(i, j, d, nid, cx.pb.p);
+                    dfs(cx, w);
+                    if (cx.abort) return;
+                    w.cnt = cx.fCnt[dep]; w.cur = cx.fCur[dep]; w.cost = cx.fCost[dep]; w.msh = cx.fMsh[dep];
+                    if (w.p != null) System.arraycopy(cx.fp[dep], 0, w.p, 0, w.p.length);
+                    w.liveS[i] = cx.fSi[dep]; w.liveV[i] = cx.fVi[dep];
+                    w.liveS[j] = cx.fSj[dep]; w.liveV[j] = cx.fVj[dep];
+                    w.idCnt[nid]--; w.idCnt[cx.fVi[dep]]++; w.idCnt[cx.fVj[dep]]++;
+                }
+            }
+        }
+
+        /** Lns */
+        static final class Lns {
+            static void con(Pool pool, Vanilla k, Evaluator ev, Floor fr, int[] ss, String[] names, long deadline, int stall, long seed, Ceiling ub, Lock lo, long sn) {
+                int n = ss.length;
+                if (n < 3 || !ub.found()) return;
+                Random r = new Random(seed);
+                Lx x = new Lx(pool, k, ev, fr, ss, names, lo);
+                RefSeq rs = RefSeq.of(ub.tr, ub.eval);
+                float[] w = {1f, 1f};
+                int stallCt = 0, decay = 0;
+                while (stallCt < stall) {
+                    if (sn >= 0 && ub.bn() <= sn) return;
+                    if (deadline > 0 && System.nanoTime() > deadline) return;
+                    int op = r.nextFloat() * (w[0] + w[1]) < w[0] ? 0 : 1;
+                    long prev = ub.cost;
+                    boolean acc = op == 0 ? dig(x, r, rs, ub) : swapOp(x, r, ub);
+                    if (acc) {
+                        rs = RefSeq.of(ub.tr, ub.eval);
+                        if (ub.cost < prev) { stallCt = 0; x.side[0] = 0; w[op] += 1f; }
+                        else stallCt++;
+                    } else {
+                        stallCt++;
+                        w[op] = Math.max(0.05f, w[op] * 0.995f);
+                    }
+                    if (++decay >= 100) {
+                        decay = 0;
+                        w[0] = 1f + (w[0] - 1f) * 0.5f;
+                        w[1] = 1f + (w[1] - 1f) * 0.5f;
+                    }
+                }
+            }
+            static final class Lx {
+                final Pool pool; final Vanilla k; final Evaluator ev;
+                final Floor fr; final int type;
+                final int[] ss, side = {0}, post, lc; final String[] names;
+                final Probe pb = new Probe();
+                final boolean[] skip, subM, ancM; final int[] stk;
+                final Greedy.Ctx g = new Greedy.Ctx();
+                final Lock lo;
+                final WSet bw;
+                final Eval[] ebuf = new Eval[1];
+                final Tr[] pbuf = new Tr[1];
+                WSet skel;
+                Lx(Pool pool, Vanilla k, Evaluator ev, Floor fr, int[] ss, String[] names, Lock lo) {
+                    int n = ss.length;
+                    this.pool = pool; this.k = k; this.ev = ev; this.fr = fr; this.type = pool.type(ss[0]); this.ss = ss; this.names = names; this.lo = lo;
+                    skip = new boolean[n - 1]; post = new int[n - 1]; stk = new int[2 * n]; subM = new boolean[2 * n - 1]; ancM = new boolean[2 * n - 1]; lc = new int[2 * n - 1];
+                    ebuf[0] = new Eval(2 * n - 1); bw = new WSet(pool, lo, ss);
+                }
+            }
+            static boolean dig(Lx x, Random r, RefSeq rs, Ceiling ub) {
+                Tr tr = ub.tr;
+                Eval cur = ub.eval;
+                int n = tr.n;
+                tr.postOrder(x.post, x.stk);
+                for (int i = 0; i < n; i++) x.lc[i] = 1;
+                for (int i = 0; i < n - 1; i++) { int s = x.post[i]; x.lc[s] = x.lc[tr.l[s]] + x.lc[tr.r[s]]; }
+                int st = r.nextInt(4), X;
+                if (st == 3) {
+                    if (n <= 40) X = tr.root();
+                    else {
+                        int best = 0; X = n;
+                        for (int s = n; s < 2 * n - 1; s++) if (x.lc[s] <= 32 && x.lc[s] > best) { best = x.lc[s]; X = s; }
+                    }
+                } else if (st == 0) X = n + r.nextInt(n - 1);
+                else {
+                    long bv = Long.MIN_VALUE; X = n;
+                    for (int s = n; s < 2 * n - 1; s++) {
+                        long v = st == 1 ? cur.aStep[s] : cur.conflicts[s];
+                        if (v > bv) { bv = v; X = s; }
+                    }
+                }
+                Arrays.fill(x.subM, false); Arrays.fill(x.ancM, false);
+                for (int i = 0; i < n - 1; i++) {
+                    int s = x.post[i];
+                    x.subM[s] = s == X || x.subM[tr.l[s]] || x.subM[tr.r[s]];
+                }
+                for (int s = tr.p[X]; s >= 0; s = tr.p[s]) x.ancM[s] = true;
+                for (int i = 0; i < n - 1; i++) x.skip[i] = x.subM[x.post[i]] || x.ancM[x.post[i]];
+                if (x.skel == null) x.skel = x.bw.copy(); else x.skel.copyFrom(x.bw);
+                WSet ws = x.skel;
+                for (int i = 0; i < rs.lu.length; i++) {
+                    if (x.skip[i]) continue;
+                    int pu = RefSeq.at(ws, rs.lu[i], -1), pv = RefSeq.at(ws, rs.ru[i], pu);
+                    if (pu < 0 || pv < 0) return false;
+                    x.k.probe(rs.lu[i], rs.ru[i], x.pb);
+                    if (!x.pb.ok) return false;
+                    int nid = x.k.commit(x.pb); ws.cost += x.pb.cost;
+                    if (pu < pv) ws.take(pu, pv, 0, nid, x.pb.p); else ws.take(pv, pu, 1, nid, x.pb.p);
+                }
+                int kk = ws.cnt;
+                if (kk < 2) return false;
+                if (x.side[0] >= 3) {
+                    long lb = x.fr.compute(ws, x.type);
+                    if (lb < 0 || ws.cost + lb >= ub.bn()) return false;
+                }
+                Greedy.GRes rep = Greedy.con(x.pool, x.k, ws, Scorer.PRESETS[r.nextInt(Scorer.PRESETS.length)], 1 + r.nextInt(3), r, x.g);
+                if (!rep.ok) return false;
+                return accept(x.ev, ub, ws, x.ss, x.names, cur.total, x.side, x.ebuf[0]);
+            }
+            static boolean swapOp(Lx x, Random r, Ceiling ub) {
+                int n = ub.tr.n;
+                Tr p2 = x.pbuf[0];
+                if (p2 == null) p2 = x.pbuf[0] = ub.tr.copy();
+                else p2.copyFrom(ub.tr);
+                for (int t = 0; t < 4; t++) {
+                    int a = r.nextInt(2 * n - 1), b = r.nextInt(2 * n - 1);
+                    if (!p2.swap(a, b)) continue;
+                    Eval e2 = x.ev.evaluate(p2, x.ebuf[0]);
+                    if (e2.feasible && (e2.total < ub.cost || (e2.total == ub.cost && x.side[0] < 3))) {
+                        if (e2.total == ub.cost) x.side[0]++;
+                        ub.report(p2.copy(), e2); // if (e2.total < ub.cost) ub.report(p2.copy(), e2); else ub.adopt(p2.copy(), e2);
+                        return true;
+                    }
+                    return false;
+                }
+                return false;
+            }
+            static boolean accept(Evaluator ev, Ceiling ub, WSet ws, int[] ss, String[] names, long cCost, int[] s, Eval sv) {
+                Tr p = ws.trs(ss, names);
+                Eval e = ev.evaluate(p, sv);
+                if (!e.feasible) return false;
+                if (e.total < cCost) { ub.report(p, e); return true; }
+                if (e.total == cCost && s[0] < 3) { s[0]++; ub.report(p, e); return true; } // ub.adopt(p, e);
+                return false;
+            }
+        }
+
+        /** Container for holding intermediate ids */
+        static final class Probe {
+            boolean ok, fr;
+            long cost, key;
+            int conflicts, applied, upgraded, newPenalty, newType, id;
+            boolean ts;
+            long[] p = new long[0];
+            final long[] lv = new long[LVW], pr = new long[PRW];
+        }
+
+        static interface Kernel {
+            void probe(int l, int r, Probe p);
+            int commit(Probe p);
+            default int apply(int l, int r, Probe p) { probe(l, r, p); return commit(p); }
+        }
+
         /**
          * @see net.minecraft.world.inventory.AnvilMenu
          * クリエイティブ以外デフォルトルール
          */
-        static final class Ref {
-            static void merge(Pool pool, Lexicon lex, Policy pol, int l, int r, Probe p) {
-                p.id = -1; p.ok = false; p.cost = 0; p.conflicts = 0; p.applied = 0; p.upgraded = 0; p.newPenalty = -1;
-                int tl = pool.typ[l], tr = pool.typ[r];
-                p.newType = tl;
-                if (!lex.ifStore[tl]) return;
-                boolean rb = lex.book[tr];
-                if (!rb && (tr != tl || !lex.dmg[tl])) return;
-                Int2IntLinkedOpenHashMap m = new Int2IntLinkedOpenHashMap();
-                for (int w = 0; w < PRW; w++) {
-                    long x = pool.pr[l * PRW + w];
-                    while (x != 0) { int e = (w << 6) + Long.numberOfTrailingZeros(x); x &= x - 1; m.put(e, pool.level(l, e)); }
+        static final class Vanilla implements Kernel {
+            final Lexicon t; final Pool pool; final Policy pol; final Lock lc; final int pN; final int[] idx; final Cache cache;
+            Vanilla(Lexicon t, Pool pool, Policy pol, Lock lc) {
+                this.t = t; this.pool = pool; this.pol = pol; this.lc = lc; pN = lc == null ? 0 : lc.ev.length;
+                if (lc == null) idx = null;
+                else {
+                    idx = new int[t.ne];
+                    Arrays.fill(idx, -1);
+                    for (int i = 0; i < lc.ev.length; i++) idx[lc.ev[i] >>> 4] = i;
                 }
+                cache = new Cache(pool, 1 << Math.clamp(64 - Long.numberOfLeadingZeros((long) pool.n * pool.n * 8), 10, 16), pN);
+            }
+            int limit() { return pol.limit; }
+            @Override public void probe(int l, int r, Probe p) {
+                p.key = ((long) l << 32 | r) + 1L; p.id = -1;
+                if (pN > 0 && p.p.length < pN + 1) p.p = new long[pN + 1];
+                if (cache.get(l, r, p)) { p.fr = false; return; }
+                eval(l, r, p);
+                cache.put(p, -1);
+                p.fr = true;
+            }
+            @Override public int commit(Probe p) {
+                if (!p.ok) return -1;
+                if (p.id >= 0) return p.id;
+                if (!p.fr) eval((int) ((p.key - 1) >>> 32), (int) (p.key - 1), p);
+                int id = pool.intern(p.lv, p.pr, p.newPenalty, p.newType, p.ts);
+                p.id = id;
+                cache.put(p, id);
+                return id;
+            }
+            void eval(int l, int r, Probe p) {
+                p.ok = false; p.cost = 0; p.conflicts = 0; p.applied = 0; p.upgraded = 0; p.newPenalty = -1;
+                if (l < 0 || r < 0 || l >= pool.n || r >= pool.n) throw new IllegalArgumentException("bad state id");
+                int tl = pool.typ[l], tr = pool.typ[r];
+                boolean lt = pool.hsh[l] < 0, rt = pool.hsh[r] < 0;
+                p.newType = tl; p.ts = lt | rt;
+                if (!t.ifStore[tl]) return;
+                boolean rb = t.book[tr], lb = t.book[tl];
+                if (!rb && (tr != tl || !t.dmg[tl])) return;
+                final int limit = pol.limit;
                 long cost = (long) pool.pen[l] + pool.pen[r];
-                boolean any = false; int cf = 0, ap = 0, upg = 0;
+                if (cost >= limit) return;
+                final long[] con = t.conflict, can = t.ifApply, rlv = pool.lv;
+                final int canB = tl * PRW, rOff = r * LVW;
+                long p0 = pool.pr[l * PRW], p1 = pool.pr[l * PRW + 1];
+                final long[] pi = p.p;
+                boolean fz = false;
+                long nz = 0;
+                int cf = 0, ap = 0, upg = 0;
+                boolean monster = false; // nya
                 for (int w = 0; w < PRW; w++) {
-                    long x = pool.pr[r * PRW + w];
+                    long x = w == 0 ? pool.pr[r * PRW] : pool.pr[r * PRW + 1];
                     while (x != 0) {
                         int e = (w << 6) + Long.numberOfTrailingZeros(x); x &= x - 1;
-                        boolean bl = lex.book[tl] || lex.ifApply(tl, e);
-                        for (int o : m.keySet()) if (o != e && lex.conflicts(e, o)) { cost++; cf++; bl = false; }
-                        if (!bl) continue;
-                        any = true; ap++;
-                        int cur = m.get(e), rl = pool.level(r, e);
-                        int nl = Math.min(cur == rl ? rl + 1 : Math.max(cur, rl), lex.maxLv[e]);
-                        if (nl > cur) upg++;
-                        m.put(e, nl);
-                        cost += (long) (rb ? lex.bkFee[e] : lex.fee[e]) * nl;
+                        int eb = e * PRW, k = Long.bitCount(con[eb] & p0) + Long.bitCount(con[eb + 1] & p1), di = idx == null ? -1 : idx[e];
+                        if (k != 0) {
+                            if (rt && !lt) return;
+                            cf += k; cost += k;
+                            if (cost >= limit) return;
+                            if (di >= 0) { if (!fz) { Arrays.fill(pi, 0, pN, 0L); fz = true; } long v = -(1L << (((int) (rlv[rOff + (e >>> 4)] >>> ((e & 15) << 2)) & 15) - 1)); pi[di] = v; nz |= v; }
+                        } else if (lb || (can[canB + (e >>> 6)] >>> e & 1L) != 0) {
+                            if (!monster) { System.arraycopy(pool.lv, l * LVW, p.lv, 0, t.nw); monster = true; }
+                            int sh = (e & 15) << 2, w2 = e >>> 4, cur = (int) (p.lv[w2] >>> sh) & 15, rl = (int) (rlv[rOff + w2] >>> sh) & 15, nl = cur == rl ? rl + 1 : Math.max(cur, rl), mx = t.maxLv[e];
+                            if (nl > mx) nl = mx;
+                            p.lv[w2] = p.lv[w2] & ~(15L << sh) | (long) nl << sh;
+                            if (w == 0) p0 |= 1L << e; else p1 |= 1L << e;
+                            cost += (long) (rb ? t.bkFee[e] : t.fee[e]) * nl;
+                            if (cost >= limit) return;
+                            if (nl > cur) upg++;
+                            ap++;
+                            if (di >= 0) { if (!fz) { Arrays.fill(pi, 0, pN, 0L); fz = true; } long v = (1L << (nl - 1)) - (cur > 0 ? 1L << (cur - 1) : 0L) - (1L << (rl - 1)); pi[di] = v; nz |= v; }
+                        } else if (di >= 0) { if (!fz) { Arrays.fill(pi, 0, pN, 0L); fz = true; } long v = -(1L << (((int) (rlv[rOff + (e >>> 4)] >>> ((e & 15) << 2)) & 15) - 1)); pi[di] = v; nz |= v; }
                     }
                 }
-                p.ok = any && cost < pol.limit;
-                p.cost = cost; p.conflicts = cf; p.applied = ap; p.upgraded = upg;
+                p.ok = ap > 0 && cost < limit; p.cost = cost; p.conflicts = cf; p.applied = ap; p.upgraded = upg; p.pr[0] = p0; p.pr[1] = p1;
                 p.newPenalty = (int) Math.min((long) Math.max(pool.pen[l], pool.pen[r]) * 2 + 1, Integer.MAX_VALUE);
-                Arrays.fill(p.lv, 0L); Arrays.fill(p.pr, 0L);
-                for (var en : m.int2IntEntrySet()) {
-                    int e = en.getIntKey(), sh = (e & 15) << 2, w2 = e >>> 4;
-                    p.lv[w2] |= (long) en.getIntValue() << sh;
-                    if (w2 == 0) p.pr[0] |= 1L << e; else p.pr[1] |= 1L << e;
-                }
+                if (pN > 0) pi[pN] = nz;
             }
             /*
             record Item(Object2IntMap<Holder<Enchantment>> enc, ItemStack item, int penalty, boolean book) {}
@@ -275,793 +1164,12 @@ public final class Canere {
              */
         }
 
-        /** Config */
-        public record Policy(int limit) {
-            public Policy { if (limit < 1) throw new IllegalArgumentException("limit not valid"); }
-            static final Policy VANILLA = new Policy(40);
-            static final Policy UNLIMITED = new Policy(5000);
-        }
-        public static final class Config {
-            public int greedy = 8, topK = 3, bWidth = 24, bbLeaves = 14, lStall = 300, pIsm = 0; // 0 auto
-            public float bLambda = 1.0f;
-            public boolean beam = true, lns = true, bb = false, auto = false;
-            public long seed = 42, budget = 0 /* Ns */, bbNodes = 2000000L, bbGap = 8;
-            public Policy policy = Policy.VANILLA;
-            Config copy() {
-                Config c = new Config();
-                c.greedy = greedy; c.topK = topK; c.bWidth = bWidth; c.bbLeaves = bbLeaves; c.lStall = lStall; c.pIsm = pIsm; c.bLambda = bLambda; c.beam = beam; c.lns = lns; c.bb = bb; c.auto = auto; c.seed = seed; c.budget = budget; c.bbNodes = bbNodes; c.bbGap = bbGap; c.policy = policy;
-                return c;
-            }
-            /** Just adjusts configurations */
-            static void tune(Config cfg, int[] ss) {
-                if (!cfg.auto) return;
-                int[] c = ss.clone();
-                Arrays.sort(c);
-                int m = 0;
-                for (int i = 0; i < c.length; i++) if (i == 0 || c[i] != c[i - 1]) m++;
-                if (m <= 10) {
-                    if (cfg.greedy < 8) cfg.greedy = 8;
-                    cfg.beam = false; cfg.lns = true; // cfg.bb = true;
-                } else if (m > 40) {
-                    cfg.lns = true; cfg.beam = true;
-                    if (cfg.greedy < 8) cfg.greedy = 8;
-                    if (cfg.bWidth == 24) cfg.bWidth = 12;
-                    if (cfg.lStall == 300) cfg.lStall = 600;
-                }
-            }
-        }
-
-        /** Result */
-        public static record Solution(Tr tr, Eval eval, boolean feasible, int starts, long ns, Metrics metrics, String fail) {
-            public long cost() { return feasible && eval != null ? eval.total : -1; }
-            public double gap() { return metrics == null ? Double.NaN : metrics.gap; }
-            public boolean proven() { return metrics != null && metrics.proven; }
-        }
-
-        record Metrics(long greedy, long beam, long lns, long bb, int reports, long lb0, long lbEst, double gap, boolean proven) {}
-        private record WRes(Tr tr, long gN, long bN, long lN, int rep) {}
-
-        /** Solver facade */
-        static Solution explore(Pool pool, int t, int[] mats, String[] ls, Config cfg) {
-            long t0 = System.nanoTime();
-            Vanilla k = new Vanilla(pool.lex(), pool, cfg.policy);
-            Prepare.Prepared prep = Prepare.apply(pool, cfg.policy, t, mats, Arrays.copyOfRange(ls, 1, ls.length));
-            if (!prep.ok) return new Solution(null, null, false, 0, System.nanoTime() - t0,  null, prep.fail);
-            int nm = prep.ids().length;
-            int[] all = new int[nm + 1]; all[0] = t;
-            System.arraycopy(prep.ids(), 0, all, 1, nm);
-            String[] names = new String[nm + 1]; names[0] = ls[0];
-            System.arraycopy(prep.names(), 0, names, 1, nm);
-            Config tc = cfg.copy(); Config.tune(tc, all);
-            long lb0 = new Floor(pool, cfg.policy.limit).compute(new WSet(all), pool.type(all[0]));
-            if (lb0 < 0) return new Solution(null, null, false, 0, System.nanoTime() - t0, new Metrics(0, 0, 0, 0, 0, -1, -1, Double.NaN, false), "Infeasible.");
-            Evaluator ev = new Evaluator(k);
-            Ceiling ub = new Ceiling();
-            long tGreedy, tBeam, tLns;
-            int reports, dn;
-            int nw = tc.pIsm > 0 ? Math.clamp(tc.greedy, 1, tc.pIsm) : Runtime.getRuntime().availableProcessors();
-            if (all.length == 1) nw = 1;
-            int sW = Math.max(20, (int) (tc.lStall / Math.sqrt(nw)));
-            long deadline = tc.budget > 0 ? t0 + tc.budget : 0;
-            WRes[] res = new WRes[nw];
-            String wn = null; AtomicLong sh = new AtomicLong(Long.MAX_VALUE);
-            ExecutorService ex = Executors.newFixedThreadPool(nw, r0 -> {
-                Thread th = new Thread(r0, "mixing-optimizer");
-                th.setDaemon(true);
-                return th;
-            });
-            try {
-                Future<?>[] fs = new Future[nw];
-                for (int wk = 0; wk < nw; wk++) {
-                    final int w = wk;
-                    Pool fp = pool.fork();
-                    fs[wk] = ex.submit(() -> res[w] = worker(fp, t, prep.ids(), names, tc, w, sW, deadline, sh));
-                }
-                for (Future<?> f : fs) {
-                    try { f.get(); }
-                    catch (InterruptedException e) { Thread.currentThread().interrupt(); }
-                    catch (ExecutionException e) { wn = String.valueOf(e.getCause()); e.getCause().printStackTrace(); }
-                }
-            } finally { ex.shutdown(); }
-            long wG = 0, wB = 0, wL = 0; int rep = 0, ok = 0;
-            for (WRes r : res) {
-                if (r == null) continue;
-                rep += r.rep; wG = Math.max(wG, r.gN); wB = Math.max(wB, r.bN); wL = Math.max(wL, r.lN);
-                if (r.tr == null) continue;
-                Eval e = ev.evaluate(r.tr, null);
-                if (e.feasible) { ub.report(r.tr, e); ok++; }
-            }
-            tGreedy = wG; tBeam = wB; tLns = wL; reports = rep; dn = ok;
-            if (!ub.found()) {
-                Metrics st = new Metrics(tGreedy, tBeam, tLns, 0, reports, lb0, -1, Double.NaN, false);
-                return new Solution(null, null, false, dn, System.nanoTime() - t0, st, wn != null ? wn : "All " + dn + " failed.");
-            }
-            Height he = Height.of(pool, t, prep.ids());
-            long lb = he.lb; // -1
-            boolean se = lb >= 0 && pool.lex().pf && !he.risky;
-            long al = se ? Math.max(0, ub.cost - lb) : Long.MIN_VALUE;
-            double gap = se ? (ub.cost > 0 ? (double) al / ub.cost : 0.0) : (ub.cost > 0 ? (double) (ub.cost - lb0) / ub.cost : Double.NaN);
-            boolean proven = se && ub.cost == lb;
-            long tBb = 0;
-            if (se && !proven && nm >= 2 && tc.bb && nm <= tc.bbLeaves && al <= tc.bbGap && (deadline == 0 || deadline - System.nanoTime() > (deadline - t0) / 4)) {
-                long tb0 = System.nanoTime();
-                proven = BranchBound.con(pool, k, ev, all, names, tc.bbNodes, deadline, tc.bLambda, ub);
-                tBb = System.nanoTime() - tb0;
-                if (proven) gap = 0.0;
-                else { al = Math.max(0, ub.cost - lb); gap = (double) al / ub.cost; }
-            }
-            Metrics st = new Metrics(tGreedy, tBeam, tLns, tBb, reports, lb0, lb, gap, proven);
-            return new Solution(ub.tr, ub.eval, true, dn, System.nanoTime() - t0, st, null);
-        }
-        static WRes worker(Pool pool, int t, int[] mats, String[] names, Config cfg, int wk, int sW, long deadline, AtomicLong sh) {
-            Vanilla k = new Vanilla(pool.lex(), pool, cfg.policy);
-            Evaluator ev = new Evaluator(k);
-            Floor fr = new Floor(pool, cfg.policy.limit);
-            int[] a = new int[mats.length + 1]; a[0] = t;
-            System.arraycopy(mats, 0, a, 1, mats.length);
-            long q1 = cfg.budget > 0 ? deadline - cfg.budget * 3 / 4 : 0, q2 = cfg.budget > 0 ? deadline - cfg.budget / 2 : 0;
-            Ceiling ub = new Ceiling(); ub.ext = sh;
-            Eval sv = new Eval(2 * a.length - 1);
-            long seed = cfg.seed ^ (wk + 1) * 0x9E3779B97F4A7C15L;
-            long tg0 = System.nanoTime();
-            for (int s = 0; s < cfg.greedy; s++) {
-                if (q1 > 0 && System.nanoTime() > q1) break;
-                Greedy.GRes g = s == 0 ? Greedy.bkCon(pool, k, a) : Greedy.con(pool, k, a, Scorer.PRESETS[(s - 1 + wk) % Scorer.PRESETS.length], Math.max(1, cfg.topK), new Random(seed ^ s * 0x9E3779B97F4A7C15L));
-                if (!g.ok) continue;
-                Tr tr = new Tr(g.l, g.r, a, names);
-                Eval e = ev.evaluate(tr, sv);
-                if (e.feasible) ub.report(tr, e);
-            }
-            long tG = System.nanoTime() - tg0;
-            long tb0 = System.nanoTime();
-            if (cfg.beam) Beam.con(pool, k, ev, fr, a, names, cfg.bWidth, cfg.bLambda, q2, ub);
-            long tB = System.nanoTime() - tb0;
-            long tl0 = System.nanoTime();
-            if (cfg.lns) Lns.con(pool, k, ev, fr, a, names, deadline, sW, seed ^ 0x5DEECE66DL, ub);
-            long tL = System.nanoTime() - tl0;
-            return new WRes(ub.tr, tG, tB, tL, ub.ver);
-        }
-
-        /** GRASP greedy */
-        static final class Greedy {
-            record GRes(int[] l, int[] r, boolean ok, int active, long cost, WSet ws) {}
-            static final class Ctx {
-                long[] hp = new long[256]; int hs;
-                int[] sqU = new int[256], sqV = new int[256]; int sqN;
-                int[] mA = new int[64], mB = new int[64]; int mN;
-                float[] cwB = new float[0];
-                PairSeen seen; int seenK;
-                final Probe pb = new Probe();
-                final int[] pkU = new int[8], pkV = new int[8], pkO = new int[8];
-                void reset() { hs = 0; mN = 0; sqN = 0; }
-                float score(Pool pool, Scorer sc, int u, int v, Probe pb) {
-                    float s = sc.cost * pb.cost + sc.penNew * pb.newPenalty + sc.conf * pb.conflicts - sc.upg * pb.upgraded;
-                    if (sc.penSum != 0) s += sc.penSum * (pool.penalty(u) + pool.penalty(v));
-                    if (sc.cw != 0) {
-                        cwB = cw(pool, cwB, u); cwB = cw(pool, cwB, v);
-                        if (sc.cw > 0) s += sc.cw * (cwB[u] + cwB[v]);
-                        else if (pool.penalty(u) == 0 && pool.penalty(v) == 0 && pool.ifBook(u) && pool.ifBook(v)) s += sc.cw * cwB[v];
-                    }
-                    return s;
-                }
-            }
-            static GRes con(Pool pool, Vanilla k, int[] ss, Scorer sc, int topK, Random r) { return con(pool, k, ss, ss.length, sc, topK, r, new Ctx()); }
-            static GRes con(Pool pool, Vanilla k, int[] ss, int len, Scorer sc, int topK, Random r, Ctx g) {
-                if (topK < 1) topK = 1;
-                if (topK > 8) topK = 8;
-                g.reset();
-                if (g.seenK < len) { g.seen = new PairSeen(4 * len * len); g.seenK = len; }
-                WSet ws = new WSet(ss, len);
-                int n = len;
-                g.seen.round();
-                for (int i = 0; i < n; i++) for (int j = i + 1; j < n; j++) {
-                    int u = ws.liveV[i], v = ws.liveV[j];
-                    if (u == v) {
-                        if (ws.idCnt[u] >= 2 && !g.seen.seen(pkey(u, v))) {
-                            k.probe(u, v, g.pb);
-                            if (g.pb.ok) push(g, g.score(pool, sc, u, v, g.pb), u, v);
-                        }
-                        continue;
-                    }
-                    if (!g.seen.seen(pkey(u, v))) {
-                        k.probe(u, v, g.pb);
-                        if (g.pb.ok) push(g, g.score(pool, sc, u, v, g.pb), u, v);
-                    }
-                    if (!g.seen.seen(pkey(v, u))) {
-                        k.probe(v, u, g.pb);
-                        if (g.pb.ok) push(g, g.score(pool, sc, v, u, g.pb), v, u);
-                    }
-                }
-                long total = 0;
-                while (ws.cnt > 1) {
-                    int pu, pv, pord;
-                    if (topK == 1) {
-                        pu = -1; pv = -1; pord = 0;
-                        while (g.hs > 0) {
-                            long key = pop(g);
-                            int seq = (int) key, u = g.sqU[seq], v = g.sqV[seq];
-                            if (!livePair(ws, u, v)) continue;
-                            k.probe(u, v, g.pb);
-                            if (!g.pb.ok) continue;
-                            pu = u; pv = v; pord = (int) (key >>> 32);
-                            break;
-                        }
-                        if (pu < 0) return new GRes(null, null, false, ws.cnt, -1, ws);
-                    } else {
-                        int fi = 0;
-                        while (g.hs > 0 && fi < topK) {
-                            long key = pop(g);
-                            int seq = (int) key, u = g.sqU[seq], v = g.sqV[seq];
-                            if (!livePair(ws, u, v)) continue;
-                            g.pkU[fi] = u; g.pkV[fi] = v; g.pkO[fi] = (int) (key >>> 32);
-                            fi++;
-                        }
-                        if (fi == 0) return new GRes(null, null, false, ws.cnt, -1, ws);
-                        int pick = fi == 1 ? 0 : r.nextInt(fi);
-                        pu = g.pkU[pick]; pv = g.pkV[pick]; pord = g.pkO[pick];
-                        for (int t2 = 0; t2 < fi; t2++) if (t2 != pick) { pushRaw(g, g.pkO[t2], g.pkU[t2], g.pkV[t2]); }
-                    }
-                    k.probe(pu, pv, g.pb);
-                    if (!g.pb.ok) continue;
-                    int nid = k.commit(g.pb);
-                    total += g.pb.cost;
-                    if (g.mN == g.mA.length) { g.mA = Arrays.copyOf(g.mA, g.mN * 2); g.mB = Arrays.copyOf(g.mB, g.mN * 2); }
-                    g.mA[g.mN] = pu; g.mB[g.mN] = pv; g.mN++;
-                    int pp = RefSeq.at(ws, pu, -1), pq = RefSeq.at(ws, pv, pp);
-                    if (pp < 0 || pq < 0) return new GRes(null, null, false, ws.cnt, -1, ws);
-                    if (pp < pq) ws.take(pp, pq, 0, nid); else ws.take(pq, pp, 1, nid);
-                    if (livePair(ws, pu, pv)) pushRaw(g, pord, pu, pv);
-                    g.seen.round();
-                    for (int p2 = 0; p2 < ws.cnt; p2++) {
-                        int x2 = ws.liveV[p2];
-                        if (!g.seen.seen(pkey(nid, x2))) {
-                            k.probe(nid, x2, g.pb);
-                            if (g.pb.ok) push(g, g.score(pool, sc, nid, x2, g.pb), nid, x2);
-                        }
-                        if (x2 != nid && !g.seen.seen(pkey(x2, nid))) {
-                            k.probe(x2, nid, g.pb);
-                            if (g.pb.ok) push(g, g.score(pool, sc, x2, nid, g.pb), x2, nid);
-                        }
-                    }
-                }
-                return new GRes(ws.L, ws.R, true, 1, total, ws);
-            }
-            static boolean livePair(WSet ws, int u, int v) {
-                int cu = ws.idCnt[u], cv = ws.idCnt[v];
-                return cu > 0 && cv > 0 && (u != v || cu >= 2);
-            }
-            static long pkey(int u, int v) { return ((long) u << 32 | v) + 1L; }
-            static void push(Ctx g, float s, int u, int v) {
-                int bits = Float.floatToRawIntBits(s);
-                pushRaw(g, bits ^ ((bits >> 31) | 0x80000000), u, v);
-            }
-            static void pushRaw(Ctx g, int ord, int u, int v) {
-                if (g.sqN == g.sqU.length) {
-                    g.sqU = Arrays.copyOf(g.sqU, g.sqN * 2);
-                    g.sqV = Arrays.copyOf(g.sqV, g.sqN * 2);
-                }
-                long key = ((long) ord << 32) | g.sqN;
-                g.sqU[g.sqN] = u; g.sqV[g.sqN] = v; g.sqN++;
-                if (g.hs == g.hp.length) g.hp = Arrays.copyOf(g.hp, g.hs * 2);
-                int i = g.hs++;
-                while (i > 0) {
-                    int p2 = (i - 1) >> 1;
-                    if (g.hp[p2] <= key) break;
-                    g.hp[i] = g.hp[p2]; i = p2;
-                }
-                g.hp[i] = key;
-            }
-            static long pop(Ctx g) {
-                long top = g.hp[0];
-                long last = g.hp[--g.hs];
-                int i = 0;
-                while (true) {
-                    int c = 2 * i + 1;
-                    if (c >= g.hs) break;
-                    if (c + 1 < g.hs && g.hp[c + 1] < g.hp[c]) c++;
-                    if (g.hp[c] >= last) break;
-                    g.hp[i] = g.hp[c]; i = c;
-                }
-                if (g.hs > 0) g.hp[i] = last;
-                return top;
-            }
-            static float[] cw(Pool pool, float[] buf, int id) {
-                if (id >= buf.length) buf = Arrays.copyOf(buf, Math.max(pool.size(), id + 1));
-                if (buf[id] != 0) return buf;
-                Lexicon t = pool.lex();
-                float[] v = {pool.penalty(id)};
-                boolean bk = pool.ifBook(id);
-                pool.view(id).forEach((e, lv) -> v[0] += (bk ? t.baCost(e) : t.aCost(e)) * lv);
-                buf[id] = v[0];
-                return buf;
-            }
-            // Book first heuristic
-            static GRes bkCon(Pool pool, Vanilla k, int[] ss) {
-                WSet ws = new WSet(ss);
-                int n = ss.length;
-                if (n == 1) return new GRes(ws.L, ws.R, true, 1, 0, ws);
-                Probe pb = new Probe();
-                if (pool.ifBook(ss[0])) {
-                    int[] r = new int[n - 1];
-                    for (int i = 1; i < n; i++) r[i - 1] = i;
-                    sortCw(pool, ss, r, n - 1, -1);
-                    int tgt = 0;
-                    for (int i = 0; i < r.length; i++) {
-                        tgt = merge(k, ws, pb, ws.pos(tgt), ws.pos(r[i]));
-                        if (tgt < 0) return con(pool, k, ss, Scorer.COST, 1, new Random(0));
-                    }
-                    return new GRes(ws.L, ws.R, true, 1, ws.cost, ws);
-                }
-                int[] bks = new int[n], nbks = new int[n]; int nb = 0, nt = 0;
-                for (int i = 1; i < n; i++) { if (pool.ifBook(ss[i])) bks[nb++] = i; else nbks[nt++] = i; }
-                sortCw(pool, ss, bks, nb, -1);
-                sortCw(pool, ss, nbks, nt, 1);
-                int bkHead = -1;
-                for (int b = 0; b < nb; b++) {
-                    int pos = ws.pos(bks[b]);
-                    if (bkHead < 0) { bkHead = ws.liveS[pos]; continue; }
-                    bkHead = merge(k, ws, pb, ws.pos(bkHead), pos);
-                    if (bkHead < 0) return con(pool, k, ss, Scorer.COST, 1, new Random(0));
-                }
-                int[] heads = new int[nt]; int nh = 0; int g = -1, gHead = -1;
-                for (int t2 = 0; t2 < nt; t2++) {
-                    int ty = pool.type(ss[nbks[t2]]);
-                    if (ty != g) {
-                        if (gHead >= 0) heads[nh++] = gHead;
-                        g = ty; gHead = ws.liveS[ws.pos(nbks[t2])];
-                        continue;
-                    }
-                    gHead = merge(k, ws, pb, ws.pos(gHead), ws.pos(nbks[t2]));
-                    if (gHead < 0) return con(pool, k, ss, Scorer.COST, 1, new Random(0));
-                }
-                if (gHead >= 0) heads[nh++] = gHead;
-                sortHeads(pool, ws, heads, nh);
-                int tgt = 0;
-                if (bkHead >= 0) {
-                    tgt = merge(k, ws, pb, ws.pos(tgt), ws.pos(bkHead));
-                    if (tgt < 0) return con(pool, k, ss, Scorer.COST, 1, new Random(0));
-                }
-                for (int h2 = 0; h2 < nh; h2++) {
-                    tgt = merge(k, ws, pb, ws.pos(tgt), ws.pos(heads[h2]));
-                    if (tgt < 0) return con(pool, k, ss, Scorer.COST, 1, new Random(0));
-                }
-                if (ws.cnt != 1) return con(pool, k, ss, Scorer.COST, 1, new Random(0));
-                return new GRes(ws.L, ws.R, true, 1, ws.cost, ws);
-            }
-            static int merge(Vanilla k, WSet ws, Probe pb, int lp, int rp) {
-                k.probe(ws.liveV[lp], ws.liveV[rp], pb);
-                if (!pb.ok) return -1;
-                int nid = k.commit(pb);
-                ws.cost += pb.cost;
-                int i = Math.min(lp, rp), j = Math.max(lp, rp);
-                ws.take(i, j, lp < rp ? 0 : 1, nid);
-                return ws.liveS[i];
-            }
-            static float bkCw(Pool pool, int id) {
-                Lexicon t = pool.lex();
-                float[] v = {pool.penalty(id)};
-                boolean book = pool.ifBook(id);
-                pool.view(id).forEach((e, lv) -> v[0] += (book ? t.baCost(e) : t.aCost(e)) * lv);
-                return v[0];
-            }
-            static void sortCw(Pool pool, int[] ss, int[] idx, int len, int m) {
-                if (len < 2) return;
-                float[] cws = new float[len];
-                for (int i = 0; i < len; i++) cws[i] = bkCw(pool, ss[idx[i]]);
-                for (int i = 1; i < len; i++) {
-                    int x = idx[i]; float cx = cws[i];
-                    int tx = m == 1 ? pool.type(ss[x]) : 0, j = i - 1;
-                    while (j >= 0) {
-                        int y = idx[j]; float cy = cws[j];
-                        if (m == 1 ? (pool.type(ss[y]) > tx || (pool.type(ss[y]) == tx && cy > cx)) : cy > cx) { idx[j + 1] = y; cws[j + 1] = cy; j--; }
-                        else break;
-                    }
-                    idx[j + 1] = x; cws[j + 1] = cx;
-                }
-            }
-            static void sortHeads(Pool pool, WSet ws, int[] heads, int len) {
-                if (len < 2) return;
-                float[] cws = new float[len];
-                for (int i = 0; i < len; i++) cws[i] = bkCw(pool, ws.liveV[ws.pos(heads[i])]);
-                for (int i = 1; i < len; i++) {
-                    int x = heads[i]; float cx = cws[i];
-                    int j = i - 1;
-                    while (j >= 0 && cws[j] > cx) { heads[j + 1] = heads[j]; cws[j + 1] = cws[j]; j--; }
-                    heads[j + 1] = x; cws[j + 1] = cx;
-                }
-            }
-        }
-
-        /** Beam search */
-        static final class Beam {
-            static void con(Pool pool, Vanilla k, Evaluator ev, Floor fr, int[] ss, String[] names, int B, float lambda, long deadline, Ceiling ub) {
-                if (B < 1) B = 1;
-                final int type = pool.type(ss[0]);
-                Eval sv = new Eval(2 * ss.length - 1);
-                WSet w0 = new WSet(ss);
-                if (w0.cnt == 1) { Tr p = w0.trs(ss, names); ub.report(p, ev.evaluate(p, sv)); return; }
-                WSet[] beam = {w0};
-                float[] cs = new float[B]; int[] cp = new int[B], ci = new int[B], cj = new int[B], cd = new int[B];
-                Mem tr = new Mem(1 << 13);
-                WSet[] free = new WSet[2 * B + 1]; int fn = 0;
-                Probe pb = new Probe();
-                while (beam.length > 0) {
-                    if (deadline > 0 && System.nanoTime() > deadline) return;
-                    int fi = 0;
-                    for (int pi = 0; pi < beam.length; pi++) {
-                        WSet w = beam[pi];
-                        long ln = ub.bn();
-                        if (ln < Long.MAX_VALUE) {
-                            long lb = fr.compute(w, type);
-                            if (lb < 0 || w.cost + lb >= ln) continue;
-                        }
-                        if (fi == B) {
-                            int mp = Integer.MAX_VALUE;
-                            for (int i2 = 0; i2 < w.cnt; i2++) { int pq = pool.pen[w.liveV[i2]]; if (pq < mp) mp = pq; }
-                            if (w.cost + 2f * mp + lambda * (2f * mp + 1f) >= cs[B - 1]) continue;
-                        }
-                        for (int i = 0; i < w.cnt; i++) for (int j = i + 1; j < w.cnt; j++) {
-                            for (int d = 0; d < 2; d++) {
-                                int u = d == 0 ? w.liveV[i] : w.liveV[j], v = d == 0 ? w.liveV[j] : w.liveV[i];
-                                k.probe(u, v, pb);
-                                if (!pb.ok) continue;
-                                float s = w.cost + pb.cost + lambda * pb.newPenalty + 0.25f * pb.conflicts;
-                                if (fi < B || s < cs[B - 1]) {
-                                    int p2 = Math.min(fi, B - 1);
-                                    while (p2 > 0 && cs[p2 - 1] > s) { cs[p2] = cs[p2 - 1]; cp[p2] = cp[p2 - 1]; ci[p2] = ci[p2 - 1]; cj[p2] = cj[p2 - 1]; cd[p2] = cd[p2 - 1]; p2--; }
-                                    cs[p2] = s; cp[p2] = pi; ci[p2] = i; cj[p2] = j; cd[p2] = d;
-                                    if (fi < B) fi++;
-                                }
-                            }
-                        }
-                    }
-                    if (fi == 0) return;
-                    WSet[] next = new WSet[fi]; int nn = 0;
-                    for (int c2 = 0; c2 < fi; c2++) {
-                        WSet src = beam[cp[c2]];
-                        WSet w = fn > 0 ? free[--fn] : null;
-                        if (w == null) w = src.copy(); else w.copyFrom(src);
-                        int i = ci[c2], j = cj[c2], d = cd[c2];
-                        int u = d == 0 ? w.liveV[i] : w.liveV[j], v = d == 0 ? w.liveV[j] : w.liveV[i];
-                        k.probe(u, v, pb);
-                        if (!pb.ok) { if (fn < free.length) free[fn++] = w; continue; }
-                        int nid = k.commit(pb);
-                        w.cost += pb.cost;
-                        w.take(i, j, d, nid);
-                        if (w.cnt == 1) {
-                            Tr tr1 = w.trs(ss, names);
-                            ub.report(tr1, ev.evaluate(tr1, sv));
-                            if (fn < free.length) free[fn++] = w;
-                            continue;
-                        }
-                        if (tr.dominated(w.msh, w.cost)) { if (fn < free.length) free[fn++] = w; continue; }
-                        next[nn++] = w;
-                    }
-                    for (WSet p2 : beam) if (fn < free.length) free[fn++] = p2;
-                    beam = nn == 0 ? new WSet[0] : (nn == next.length ? next : Arrays.copyOf(next, nn));
-                }
-            }
-        }
-
-        /** B&B */
-        static final class BranchBound {
-            static boolean con(Pool pool, Vanilla k, Evaluator ev, int[] ss, String[] names, long budget, long deadline, float lambda, Ceiling ub) { return con(pool, k, ev, new WSet(ss), ss, names, budget, deadline, lambda, ub); }
-            static boolean con(Pool pool, Vanilla k, Evaluator ev, WSet w0, int[] ss, String[] names, long budget, long deadline, float lambda, Ceiling ub) {
-                if (w0.cnt == 1) {
-                    Tr p = w0.trs(ss, names);
-                    ub.report(p, ev.evaluate(p, null));
-                    return true;
-                }
-                Ctx cx = new Ctx(k, ev, ss, names, budget, deadline, lambda, ub);
-                dfs(cx, w0);
-                return !cx.abort;
-            }
-            static final class Ctx {
-                final Vanilla k; final Evaluator ev; final Floor fr;
-                final int[] ss; final String[] names; final int type;
-                final float lambda; final long deadline, budget;
-                final Ceiling ub;
-                final Mem tr;
-                final Probe pb = new Probe();
-                final Eval sc;
-                final int cc;
-                final float[][] bs; final int[][] bi, bj, bd;
-                final int[] fCnt, fCur, fSi, fVi, fSj, fVj;
-                final long[] fCost, fMsh;
-                long nodes; boolean abort;
-                Ctx(Vanilla k, Evaluator ev, int[] ss, String[] names, long budget, long deadline, float lambda, Ceiling ub) {
-                    this.k = k; this.ev = ev; this.ss = ss; this.names = names;
-                    this.budget = budget; this.deadline = deadline; this.lambda = lambda; this.ub = ub;
-                    tr = new Mem(Math.clamp(budget, 4096, 1 << 21));
-                    fr = new Floor(k.pool, k.limit());
-                    type = k.pool.type(ss[0]);
-                    int n = ss.length;
-                    if (n > 32) throw new IllegalStateException("B&B supports at most 32 leaves");
-                    cc = n * (n - 1);
-                    bs = new float[n][cc]; bi = new int[n][cc]; bj = new int[n][cc]; bd = new int[n][cc];
-                    sc = new Eval(2 * n - 1);
-                    fCnt = new int[n]; fCur = new int[n]; fSi = new int[n]; fVi = new int[n]; fSj = new int[n]; fVj = new int[n]; fCost = new long[n]; fMsh = new long[n];
-                }
-            }
-            static void dfs(Ctx cx, WSet w) {
-                if (++cx.nodes > cx.budget || (cx.nodes & 511) == 0 && cx.deadline > 0 && System.nanoTime() > cx.deadline) {
-                    cx.abort = true; return;
-                }
-                if (w.cnt == 1) {
-                    Tr p = w.trs(cx.ss, cx.names);
-                    cx.ub.report(p, cx.ev.evaluate(p, cx.sc));
-                    return;
-                }
-                long lbv = cx.fr.compute(w, cx.type);
-                if (lbv < 0) return;
-                if (cx.ub.found() && w.cost + lbv >= cx.ub.cost) return;
-                if (cx.tr.dominated(w.msh, w.cost)) return;
-                int dep = w.cur - cx.ss.length, cc = cx.cc;
-                float[] bs = cx.bs[dep]; int[] bi = cx.bi[dep], bj = cx.bj[dep], bd = cx.bd[dep];
-                int found = 0;
-                for (int i = 0; i < w.cnt; i++) for (int j = i + 1; j < w.cnt; j++)
-                    for (int d = 0; d < 2; d++) {
-                        int u = d == 0 ? w.liveV[i] : w.liveV[j], v = d == 0 ? w.liveV[j] : w.liveV[i];
-                        cx.k.probe(u, v, cx.pb);
-                        if (!cx.pb.ok) continue;
-                        float s = cx.pb.cost + cx.lambda * cx.pb.newPenalty;
-                        if (found < cc || s < bs[cc - 1]) {
-                            int p2 = Math.min(found, cc - 1);
-                            while (p2 > 0 && bs[p2 - 1] > s) {
-                                bs[p2] = bs[p2 - 1]; bi[p2] = bi[p2 - 1]; bj[p2] = bj[p2 - 1]; bd[p2] = bd[p2 - 1]; p2--;
-                            }
-                            bs[p2] = s; bi[p2] = i; bj[p2] = j; bd[p2] = d;
-                            if (found < cc) found++;
-                        }
-                    }
-                for (int c2 = 0; c2 < found && !cx.abort; c2++) {
-                    int i = bi[c2], j = bj[c2], d = bd[c2];
-                    int u = d == 0 ? w.liveV[i] : w.liveV[j], v = d == 0 ? w.liveV[j] : w.liveV[i];
-                    cx.k.probe(u, v, cx.pb);
-                    if (!cx.pb.ok) continue;
-                    int nid = cx.k.commit(cx.pb);
-                    cx.fCnt[dep] = w.cnt; cx.fCur[dep] = w.cur; cx.fCost[dep] = w.cost; cx.fMsh[dep] = w.msh;
-                    cx.fSi[dep] = w.liveS[i]; cx.fVi[dep] = w.liveV[i];
-                    cx.fSj[dep] = w.liveS[j]; cx.fVj[dep] = w.liveV[j];
-                    w.cost += cx.pb.cost;
-                    w.take(i, j, d, nid);
-                    dfs(cx, w);
-                    if (cx.abort) return;
-                    w.cnt = cx.fCnt[dep]; w.cur = cx.fCur[dep]; w.cost = cx.fCost[dep]; w.msh = cx.fMsh[dep];
-                    w.liveS[i] = cx.fSi[dep]; w.liveV[i] = cx.fVi[dep];
-                    w.liveS[j] = cx.fSj[dep]; w.liveV[j] = cx.fVj[dep];
-                    w.idCnt[nid]--; w.idCnt[cx.fVi[dep]]++; w.idCnt[cx.fVj[dep]]++;
-                }
-            }
-        }
-
-        /** Lns */
-        static final class Lns {
-            static final class Lx {
-                final Pool pool; final Vanilla k; final Evaluator ev;
-                final Floor fr; final int type;
-                final int[] ss, side = {0}, post, lc; final String[] names;
-                final Probe pb = new Probe();
-                final boolean[] skip, subM, ancM; final int[] stk;
-                final Greedy.Ctx g = new Greedy.Ctx();
-                final Eval[] ebuf = new Eval[1];
-                final Tr[] pbuf = new Tr[1];
-                WSet skel;
-                Lx(Pool pool, Vanilla k, Evaluator ev, Floor fr, int[] ss, String[] names) {
-                    int n = ss.length;
-                    this.pool = pool; this.k = k; this.ev = ev; this.fr = fr; this.type = pool.type(ss[0]); this.ss = ss; this.names = names;
-                    skip = new boolean[n - 1]; post = new int[n - 1]; stk = new int[2 * n]; subM = new boolean[2 * n - 1]; ancM = new boolean[2 * n - 1]; lc = new int[2 * n - 1];
-                    ebuf[0] = new Eval(2 * n - 1);
-                }
-            }
-            static void con(Pool pool, Vanilla k, Evaluator ev, Floor fr, int[] ss, String[] names, long deadline, int stall, long seed, Ceiling ub) {
-                int n = ss.length;
-                if (n < 3 || !ub.found()) return;
-                Random r = new Random(seed);
-                Lx x = new Lx(pool, k, ev, fr, ss, names);
-                RefSeq rs = RefSeq.of(ub.tr, ub.eval);
-                float[] w = {1f, 1f};
-                int stallCt = 0, decay = 0;
-                while (stallCt < stall) {
-                    if (deadline > 0 && System.nanoTime() > deadline) return;
-                    int op = r.nextFloat() * (w[0] + w[1]) < w[0] ? 0 : 1;
-                    long prev = ub.cost;
-                    boolean acc = op == 0 ? dig(x, r, rs, ub) : swapOp(x, r, ub);
-                    if (acc) {
-                        rs = RefSeq.of(ub.tr, ub.eval);
-                        if (ub.cost < prev) { stallCt = 0; x.side[0] = 0; w[op] += 1f; }
-                        else stallCt++;
-                    } else {
-                        stallCt++;
-                        w[op] = Math.max(0.05f, w[op] * 0.995f);
-                    }
-                    if (++decay >= 100) {
-                        decay = 0;
-                        w[0] = 1f + (w[0] - 1f) * 0.5f;
-                        w[1] = 1f + (w[1] - 1f) * 0.5f;
-                    }
-                }
-            }
-            static boolean dig(Lx x, Random r, RefSeq rs, Ceiling ub) {
-                Tr tr = ub.tr;
-                Eval cur = ub.eval;
-                int n = tr.n;
-                tr.postOrder(x.post, x.stk);
-                for (int i = 0; i < n; i++) x.lc[i] = 1;
-                for (int i = 0; i < n - 1; i++) { int s = x.post[i]; x.lc[s] = x.lc[tr.l[s]] + x.lc[tr.r[s]]; }
-                int st = r.nextInt(4), X;
-                if (st == 3) {
-                    if (n <= 40) X = tr.root();
-                    else {
-                        int best = 0; X = n;
-                        for (int s = n; s < 2 * n - 1; s++) if (x.lc[s] <= 32 && x.lc[s] > best) { best = x.lc[s]; X = s; }
-                    }
-                } else if (st == 0) X = n + r.nextInt(n - 1);
-                else {
-                    long bv = Long.MIN_VALUE; X = n;
-                    for (int s = n; s < 2 * n - 1; s++) {
-                        long v = st == 1 ? cur.aStep[s] : cur.conflicts[s];
-                        if (v > bv) { bv = v; X = s; }
-                    }
-                }
-                Arrays.fill(x.subM, false); Arrays.fill(x.ancM, false);
-                for (int i = 0; i < n - 1; i++) {
-                    int s = x.post[i];
-                    x.subM[s] = s == X || x.subM[tr.l[s]] || x.subM[tr.r[s]];
-                }
-                for (int s = tr.p[X]; s >= 0; s = tr.p[s]) x.ancM[s] = true;
-                for (int i = 0; i < n - 1; i++) x.skip[i] = x.subM[x.post[i]] || x.ancM[x.post[i]];
-                if (x.skel == null) x.skel = new WSet(x.ss); else x.skel.reset(x.ss);
-                WSet ws = x.skel;
-                for (int i = 0; i < rs.lu.length; i++) {
-                    if (x.skip[i]) continue;
-                    int pu = RefSeq.at(ws, rs.lu[i], -1), pv = RefSeq.at(ws, rs.ru[i], pu);
-                    if (pu < 0 || pv < 0) return false;
-                    x.k.probe(rs.lu[i], rs.ru[i], x.pb);
-                    if (!x.pb.ok) return false;
-                    int nid = x.k.commit(x.pb);
-                    ws.cost += x.pb.cost;
-                    if (pu < pv) ws.take(pu, pv, 0, nid); else ws.take(pv, pu, 1, nid);
-                }
-                int kk = ws.cnt;
-                if (kk < 2) return false;
-                if (x.side[0] >= 3) {
-                    long lb = x.fr.compute(ws, x.type);
-                    if (lb < 0 || ws.cost + lb >= ub.bn()) return false;
-                }
-                Greedy.GRes rep = Greedy.con(x.pool, x.k, ws.liveV, kk, Scorer.PRESETS[r.nextInt(Scorer.PRESETS.length)], 1 + r.nextInt(3), r, x.g);
-                if (!rep.ok) return false;
-                for (int i = 0; i < x.g.mN; i++) {
-                    int u = x.g.mA[i], v = x.g.mB[i];
-                    int pu = RefSeq.at(ws, u, -1), pv = RefSeq.at(ws, v, pu);
-                    if (pu < 0 || pv < 0) return false;
-                    x.k.probe(u, v, x.pb);
-                    if (!x.pb.ok) return false;
-                    int nid = x.k.commit(x.pb);
-                    ws.cost += x.pb.cost;
-                    if (pu < pv) ws.take(pu, pv, 0, nid); else ws.take(pv, pu, 1, nid);
-                }
-                if (ws.cnt != 1) return false;
-                return accept(x.ev, ub, ws, x.ss, x.names, cur.total, x.side, x.ebuf[0]);
-            }
-            static boolean swapOp(Lx x, Random r, Ceiling ub) {
-                int n = ub.tr.n;
-                Tr p2 = x.pbuf[0];
-                if (p2 == null) p2 = x.pbuf[0] = ub.tr.copy();
-                else p2.copyFrom(ub.tr);
-                for (int t = 0; t < 4; t++) {
-                    int a = r.nextInt(2 * n - 1), b = r.nextInt(2 * n - 1);
-                    if (!p2.swap(a, b)) continue;
-                    Eval e2 = x.ev.evaluate(p2, x.ebuf[0]);
-                    if (e2.feasible && (e2.total < ub.cost || (e2.total == ub.cost && x.side[0] < 3))) {
-                        if (e2.total == ub.cost) x.side[0]++;
-                        ub.report(p2.copy(), e2);
-                        return true;
-                    }
-                    return false;
-                }
-                return false;
-            }
-            static boolean accept(Evaluator ev, Ceiling ub, WSet ws, int[] ss, String[] names, long cCost, int[] s, Eval sv) {
-                Tr p = ws.trs(ss, names);
-                Eval e = ev.evaluate(p, sv);
-                if (!e.feasible) return false;
-                if (e.total < cCost) { ub.report(p, e); return true; }
-                if (e.total == cCost && s[0] < 3) { s[0]++; ub.report(p, e); return true; }
-                return false;
-            }
-        }
-
-        /** Container for holding intermediate ids */
-        static final class Probe {
-            boolean ok, fr;
-            long cost, key;
-            int conflicts, applied, upgraded, newPenalty, newType, id;
-            final long[] lv = new long[LVW], pr = new long[PRW];
-        }
-
-        static interface Kernel {
-            void probe(int l, int r, Probe p);
-            int commit(Probe p);
-            default int apply(int l, int r, Probe p) { probe(l, r, p); return commit(p); }
-        }
-
-        /**
-         * @see Ref
-         */
-        static final class Vanilla implements Kernel {
-            final Lexicon t; final Pool pool; final Policy pol; final Cache cache;
-            Vanilla(Lexicon t, Pool pool, Policy pol) { this.t = t; this.pool = pool; this.pol = pol; this.cache = new Cache(pool, 1 << 16); }
-            int limit() { return pol.limit; }
-            @Override public void probe(int l, int r, Probe p) {
-                p.key = ((long) l << 32 | r) + 1L; p.id = -1;
-                if (cache.get(l, r, p)) { p.fr = false; return; }
-                eval(l, r, p);
-                cache.put(p, -1);
-                p.fr = true;
-            }
-            @Override public int commit(Probe p) {
-                if (!p.ok) return -1;
-                if (p.id >= 0) return p.id;
-                if (!p.fr) eval((int) ((p.key - 1) >>> 32), (int) (p.key - 1), p);
-                int id = pool.intern(p.lv, p.pr, p.newPenalty, p.newType);
-                p.id = id;
-                cache.put(p, id);
-                return id;
-            }
-            void eval(int l, int r, Probe p) {
-                p.ok = false; p.cost = 0; p.conflicts = 0; p.applied = 0; p.upgraded = 0; p.newPenalty = -1;
-                if (l < 0 || r < 0 || l >= pool.n || r >= pool.n) throw new IllegalArgumentException("bad state id");
-                int tl = pool.typ[l], tr = pool.typ[r];
-                p.newType = tl;
-                if (!t.ifStore[tl]) return;
-                boolean rb = t.book[tr], lb = t.book[tl];
-                if (!rb && (tr != tl || !t.dmg[tl])) return;
-                final int limit = pol.limit;
-                long cost = (long) pool.pen[l] + pool.pen[r];
-                if (cost >= limit) return;
-                final long[] con = t.conflict, can = t.ifApply, rlv = pool.lv;
-                final int canB = tl * PRW, rOff = r * LVW;
-                long p0 = pool.pr[l * PRW], p1 = pool.pr[l * PRW + 1];
-                int cf = 0, ap = 0, upg = 0;
-                boolean monster = false; // nya
-                for (int w = 0; w < PRW; w++) {
-                    long x = w == 0 ? pool.pr[r * PRW] : pool.pr[r * PRW + 1];
-                    while (x != 0) {
-                        int e = (w << 6) + Long.numberOfTrailingZeros(x); x &= x - 1;
-                        int eb = e * PRW;
-                        int k = Long.bitCount(con[eb] & p0) + Long.bitCount(con[eb + 1] & p1);
-                        if (k != 0) {
-                            cf += k; cost += k;
-                            if (cost >= limit) return;
-                        } else if (lb || (can[canB + (e >>> 6)] >>> e & 1L) != 0) {
-                            if (!monster) { System.arraycopy(pool.lv, l * LVW, p.lv, 0, t.nw); monster = true; }
-                            int sh = (e & 15) << 2, w2 = e >>> 4;
-                            int cur = (int) (p.lv[w2] >>> sh) & 15, rl = (int) (rlv[rOff + w2] >>> sh) & 15;
-                            int nl = cur == rl ? rl + 1 : Math.max(cur, rl), mx = t.maxLv[e];
-                            if (nl > mx) nl = mx;
-                            p.lv[w2] = p.lv[w2] & ~(15L << sh) | (long) nl << sh;
-                            if (w == 0) p0 |= 1L << e; else p1 |= 1L << e;
-                            cost += (long) (rb ? t.bkFee[e] : t.fee[e]) * nl;
-                            if (cost >= limit) return;
-                            if (nl > cur) upg++;
-                            ap++;
-                        }
-                    }
-                }
-                p.ok = ap > 0 && cost < limit;
-                p.cost = cost; p.conflicts = cf; p.applied = ap; p.upgraded = upg;
-                p.newPenalty = (int) Math.min((long) Math.max(pool.pen[l], pool.pen[r]) * 2 + 1, Integer.MAX_VALUE);
-                p.pr[0] = p0; p.pr[1] = p1;
-            }
-        }
-
         /** Eval dispatcher */
         static final class Evaluator {
-            final Kernel k;
+            final Kernel k; final Pool pool; final Lock lc;
             final Probe pb = new Probe();
             int[] post = new int[0], stk = new int[0];
-            Evaluator(Kernel k) { this.k = k; }
+            Evaluator(Kernel k, Pool pool, Lock lc) { this.k = k; this.pool = pool; this.lc = lc; }
             Eval evaluate(Tr tr, Eval ev) {
                 int n = tr.n, m = 2 * n - 1;
                 if (ev == null || ev.ids.length != m) ev = new Eval(m);
@@ -1077,10 +1185,9 @@ public final class Canere {
                     if (!pb.ok) { ev.feasible = false; ev.failIdx = s; ev.total = -1; return ev; }
                     ev.ids[s] = k.commit(pb);
                     long c = pb.cost;
-                    ev.aStep[s] = (int) c;
-                    ev.conflicts[s] = pb.conflicts;
-                    total += c;
+                    ev.aStep[s] = (int) c; ev.conflicts[s] = pb.conflicts; total += c;
                 }
+                if (lc != null) { int rt = ev.ids[tr.root()]; for (int i = 0; i < lc.ev.length; i++) if (pool.level(rt, lc.ev[i] >>> 4) < (lc.ev[i] & 15)) { ev.feasible = false; ev.failIdx = tr.root(); ev.total = -1; return ev; } }
                 ev.total = total;
                 return ev;
             }
@@ -1132,30 +1239,39 @@ public final class Canere {
                 if (ext != null) ext.accumulateAndGet(cost, Math::min);
                 return true;
             }
+            /*
+            boolean adopt(Tr p, Eval e) {
+                if (!e.feasible || e.total != cost) return false;
+                tr = p; eval = e.copy(); ver++;
+                return true;
+            }
+             */
             boolean found() { return cost < Long.MAX_VALUE; }
             long bn() { return ext == null ? cost : Math.min(cost, ext.get()); }
         }
         static final class Floor {
-            final Pool pool; final Lexicon t; final int cap;
+            final Pool pool; final Lexicon t; final int cap; final Lock lc; final long df;
             long[] pa = new long[0], pe = new long[0];
-            Floor(Pool pool, int cap) { this.pool = pool; t = pool.lex(); this.cap = cap; }
+            Floor(Pool pool, int cap, Lock lc) {
+                this.pool = pool; t = pool.lex(); this.cap = cap; this.lc = lc;
+                long d = 0;
+                if (lc != null) for (int i = 0; i < lc.ev.length; i++) { int e = lc.ev[i] >>> 4; d += (long) Math.min(t.bkFee[e], t.fee[e]) * (lc.ev[i] & 15); }
+                df = d;
+            }
             long compute(WSet w, int type) {
                 final int L = w.cnt;
                 if (L <= 1) return 0;
-                int m = Integer.MAX_VALUE; long sum = 0;
+                int m = Integer.MAX_VALUE, mx = Integer.MAX_VALUE, c0 = 0; long sum = 0;
                 for (int i = 0; i < L; i++) {
-                    int p = pool.pen[w.liveV[i]];
+                    int id = w.liveV[i], p = pool.pen[id];
                     sum += p;
-                    if (p < m) m = p;
+                    if (p < m) { m = p; c0 = 1; } else if (p == m) c0++;
+                    if (pool.typ[id] == type && p < mx) mx = p;
                 }
-                int mx = Integer.MAX_VALUE;
-                for (int i = 0; i < L; i++) if (pool.typ[w.liveV[i]] == type && pool.pen[w.liveV[i]] < mx) mx = pool.pen[w.liveV[i]];
                 if (mx == Integer.MAX_VALUE) return -1;
                 int H = 32 - Integer.numberOfLeadingZeros(L - 1);
                 if (2L * m >= cap) return -1;
                 if (L >= 3 && ((1L << (H - 1)) * (m + 1L) - 1) + m >= cap) return -1;
-                int c0 = 0;
-                for (int i = 0; i < L; i++) if (pool.pen[w.liveV[i]] == m) c0++;
                 int q0 = Math.min(c0 >> 1, Math.min(L >> 1, L - 2)), l = Math.max(0, H - 2), r = Math.max(0, L - 2 - q0 - l);
                 long in = 0;
                 if (t.pf) {
@@ -1164,29 +1280,33 @@ public final class Canere {
                 }
                 long u0 = 0, u1 = 0;
                 for (int i = 0; i < L; i++) { int b = w.liveV[i] * PRW; u0 |= pool.pr[b]; u1 |= pool.pr[b + 1]; }
+                long cu0 = 0, cu1 = 0;
+                for (long x = u0; x != 0; x &= x - 1) { int t2 = Long.numberOfTrailingZeros(x); cu0 |= t.conflict[t2 * PRW]; cu1 |= t.conflict[t2 * PRW + 1]; }
+                for (long x = u1; x != 0; x &= x - 1) { int t2 = 64 + Long.numberOfTrailingZeros(x); cu0 |= t.conflict[t2 * PRW]; cu1 |= t.conflict[t2 * PRW + 1]; }
+                final long ia0 = t.ifApply[type * PRW], ia1 = t.ifApply[type * PRW + 1];
                 if (pa.length < L) pa = new long[Math.max(L, 8)];
+                final int[] mlv = t.maxLv; final long[] lva = pool.lv;
                 long tl = 0, ml = 0;
                 for (int i = 0; i < L; i++) {
-                    int is = w.liveV[i]; long pv = 0;
-                    for (int wd = 0; wd < PRW; wd++) {
-                        long x = pool.pr[is * PRW + wd];
-                        while (x != 0) {
-                            int e = (wd << 6) + Long.numberOfTrailingZeros(x); x &= x - 1;
-                            if (!t.ifApply(type, e)) continue;
-                            boolean cf = (t.conflict[e * PRW] & u0) != 0 || (t.conflict[e * PRW + 1] & u1) != 0;
-                            pv += cf ? (t.pf ? 1 : 0) : (long) (t.pf ? t.bkFee[e] : Math.min(t.bkFee[e], t.fee[e])) * Math.min(pool.level(is, e), t.maxLv[e]);
-                        }
+                    int is = w.liveV[i], lb = is * LVW;
+                    long a0 = pool.pr[is * PRW] & ia0, a1 = pool.pr[is * PRW + 1] & ia1, pv = 0;
+                    if (t.pf) {
+                        pv = Long.bitCount(a0 & cu0) + Long.bitCount(a1 & cu1);
+                        for (long x = a0 & ~cu0; x != 0; x &= x - 1) { int e = Long.numberOfTrailingZeros(x); pv += (long) t.bkFee[e] * Math.min((int) (lva[lb + (e >>> 4)] >>> ((e & 15) << 2)) & 15, mlv[e]); }
+                        for (long x = a1 & ~cu1; x != 0; x &= x - 1) { int e = 64 + Long.numberOfTrailingZeros(x); pv += (long) t.bkFee[e] * Math.min((int) (lva[lb + (e >>> 4)] >>> ((e & 15) << 2)) & 15, mlv[e]); }
+                    } else {
+                        for (long x = a0; x != 0; x &= x - 1) { int e = Long.numberOfTrailingZeros(x); if ((cu0 >>> e & 1L) == 0) pv += (long) Math.min(t.bkFee[e], t.fee[e]) * Math.min((int) (lva[lb + (e >>> 4)] >>> ((e & 15) << 2)) & 15, mlv[e]); }
+                        for (long x = a1; x != 0; x &= x - 1) { int e = 64 + Long.numberOfTrailingZeros(x); if ((cu1 >>> (e - 64) & 1L) == 0) pv += (long) Math.min(t.bkFee[e], t.fee[e]) * Math.min((int) (lva[lb + (e >>> 4)] >>> ((e & 15) << 2)) & 15, mlv[e]); }
                     }
                     pa[i] = pv; tl += pv;
                     if (pool.typ[is] == type && pv > ml) ml = pv;
                 }
-                long e1 = tl - ml;
-                long bs = in;
+                long e1 = tl - ml, bs = in;
                 if (t.pf && L <= 256) {
                     Sdp dp = Sdp.at(L);
-                    Arrays.sort(pa, 0, L);
+                    if (L <= 32) for (int i = 1; i < L; i++) { long x = pa[i]; int j = i - 1; while (j >= 0 && pa[j] > x) { pa[j + 1] = pa[j]; j--; } pa[j + 1] = x; }
+                    else Arrays.sort(pa, 0, L);
                     int rm = Arrays.binarySearch(pa, 0, L, ml);
-                    if (rm < 0) rm = 0;
                     if (pe.length < L) pe = new long[Math.max(L, 8)];
                     pe[0] = 0;
                     for (int i = 0, j = 0; i < L; i++) if (i != rm) pe[++j] = pe[j - 1] + pa[i];
@@ -1205,7 +1325,7 @@ public final class Canere {
                     }
                     if (ql < INF) bs = Math.max(bs, ql);
                 }
-                return sum + bs + e1;
+                return sum + bs + (bs > in ? e1 : Math.max(e1, df));
             }
         }
         static final class Height {
@@ -1239,7 +1359,8 @@ public final class Canere {
                 long mx = 0;
                 for (int i = 0; i < n; i++) if (!pool.ifBook(mats[i]) && c[i] > mx) mx = c[i];
                 long nl = acc[0] - Math.max(0, mx - tpv[0]);
-                Arrays.sort(c);
+                if (n <= 32) for (int i = 1; i < n; i++) { long x = c[i]; int j = i - 1; while (j >= 0 && c[j] > x) { c[j + 1] = c[j]; j--; } c[j + 1] = x; }
+                else Arrays.sort(c);
                 long[] pe = new long[n + 1];
                 for (int i = 0; i < n; i++) pe[i + 1] = pe[i] + c[i];
                 int p0 = pool.penalty(t); long lp = p0;
@@ -1271,14 +1392,71 @@ public final class Canere {
             record Prepared(boolean ok, String fail, int[] ids, String[] names) {}
             static Prepared apply(Pool pool, Policy pol, int t, int[] mats, String[] names) {
                 Lexicon lex = pool.lex();
-                if (!lex.ifStore[pool.type(t)]) return new Prepared(false, "target cannot store enchantments", null, null);
-                if (pool.penalty(t) >= pol.limit) return new Prepared(false, "target penalty out of cap", null, null);
-                int keep = 0;
-                for (int i = 0; i < mats.length; i++) if (usable(pool, lex, pol, t, mats[i])) keep++;
-                if (keep == mats.length) return new Prepared(true, null, mats, names);
-                int[] st = new int[keep]; String[] nm = new String[keep];
-                for (int i = 0, j = 0; i < mats.length; i++) if (usable(pool, lex, pol, t, mats[i])) { st[j] = mats[i]; nm[j] = names[i]; j++; }
+                if (!lex.ifStore[pool.type(t)]) return new Prepared(false, "Target can't be enchanted.", null, null);
+                if (pool.penalty(t) >= pol.limit) return new Prepared(false, "Target too expensive.", null, null);
+                int k = 0;
+                for (int i = 0; i < mats.length; i++) if (usable(pool, lex, pol, t, mats[i])) k++;
+                int[] st; String[] nm;
+                if (k == mats.length) { st = mats.clone(); nm = names.clone(); }
+                else {
+                    st = new int[k]; nm = new String[k];
+                    for (int i = 0, j = 0; i < mats.length; i++) if (usable(pool, lex, pol, t, mats[i])) { st[j] = mats[i]; nm[j] = names[i]; j++; }
+                }
+                int rm = surplus(pool, lex, t, st, nm);
+                if (rm > 0) { st = Arrays.copyOf(st, st.length - rm); nm = Arrays.copyOf(nm, nm.length - rm); }
                 return new Prepared(true, null, st, nm);
+            }
+            static int surplus(Pool pool, Lexicon lex, int t, int[] ids, String[] names) {
+                int n = ids.length;
+                if (n == 0) return 0;
+                final int ty = pool.type(t);
+                long[] mx = new long[lex.ne], ton = new long[PRW], s = new long[PRW];
+                int[] pc = new int[lex.ne];
+                pool.view(t).forEach((e, lv) -> { mx[e] += 1L << (lv - 1); ton[e >>> 6] |= 1L << e; s[e >>> 6] |= 1L << e; pc[e]++; });
+                for (int i = 0; i < n; i++) {
+                    int m = ids[i];
+                    pool.view(m).forEach((e, lv) -> { pc[e]++; s[e >>> 6] |= 1L << e; if (lex.ifApply(ty, e)) mx[e] += 1L << (lv - 1); });
+                }
+                long[] d0 = new long[PRW];
+                for (int wd = 0; wd < PRW; wd++) for (long x = ton[wd]; x != 0; x &= x - 1) { int t2 = (wd << 6) + Long.numberOfTrailingZeros(x); d0[0] |= lex.conflict[t2 * PRW]; d0[1] |= lex.conflict[t2 * PRW + 1]; }
+                int[] ws = new int[n], ix = new int[n];
+                for (int i = 0; i < n; i++) { ws[i] = ids[i]; ix[i] = i; }
+                for (int i = 1; i < n; i++) {
+                    int x = ws[i], xi = ix[i], px = pool.penalty(x), j = i - 1;
+                    while (j >= 0 && pool.penalty(ws[j]) < px) { ws[j + 1] = ws[j]; ix[j + 1] = ix[j]; j--; }
+                    ws[j + 1] = x; ix[j + 1] = xi;
+                }
+                int[] rv = new int[lex.ne], rv2 = new int[lex.ne];
+                long[] lk = new long[PRW], lk2 = new long[PRW];
+                Lock.resolve(pool, lex, t, ty, mx, ton, s, rv, lk);
+                int ln = n, k = 0;
+                while (k < ln) {
+                    int m = ws[k];
+                    boolean[] ok = {true};
+                    pool.view(m).forEach((e, _) -> { if (pc[e] < 2 && (d0[e >>> 6] >>> e & 1L) == 0) ok[0] = false; });
+                    if (ok[0]) {
+                        int lc = ln - 1, d = ws[lc], di = ix[lc], mi = ix[k];
+                        ws[k] = d; ix[k] = di; ws[lc] = m; ix[lc] = mi;
+                        pool.view(m).forEach((e, lv) -> {
+                            if (--pc[e] == 0) s[e >>> 6] &= ~(1L << e);
+                            if (lex.ifApply(ty, e)) mx[e] -= 1L << (lv - 1);
+                        });
+                        Lock.resolve(pool, lex, t, ty, mx, ton, s, rv2, lk2);
+                        ok[0] = lk[0] == lk2[0] && lk[1] == lk2[1] && Arrays.equals(rv, rv2);
+                        if (ok[0]) { ln = lc; continue; }
+                        pool.view(m).forEach((e, lv) -> {
+                            if (++pc[e] == 1) s[e >>> 6] |= 1L << e;
+                            if (lex.ifApply(ty, e)) mx[e] += 1L << (lv - 1);
+                        });
+                        ws[lc] = ws[k]; ix[lc] = ix[k]; ws[k] = m; ix[k] = mi;
+                    }
+                    k++;
+                }
+                boolean[] bk = new boolean[n];
+                for (int i = 0; i < ln; i++) bk[ix[i]] = true;
+                int w = 0;
+                for (int i = 0; i < n; i++) if (bk[i]) { ids[w] = ids[i]; if (names != null) names[w] = names[i]; w++; }
+                return n - w;
             }
             static boolean usable(Pool pool, Lexicon lex, Policy pol, int t, int mat) {
                 if (pool.penalty(mat) >= pol.limit) return false;
@@ -1294,6 +1472,56 @@ public final class Canere {
                 pool.view(mat).forEach((e, lv) -> { if (tb || lex.ifApply(tt, e)) seen[0] = true; });
                 return seen[0];
             }
+        }
+
+        /** Degraded Pillar */
+        static final class Lock {
+            final int[] ev; final long w0, w1;
+            private Lock(int[] ev, long w0, long w1) { this.ev = ev; this.w0 = w0; this.w1 = w1; }
+            static Lock of(Pool pool, int t, int[] mats) {
+                Lexicon lex = pool.lex();
+                final int ty = pool.type(t);
+                long[] mx = new long[lex.ne], ton = new long[PRW], s = new long[PRW];
+                int[] pc = new int[lex.ne];
+                pool.view(t).forEach((e, lv) -> { mx[e] += 1L << (lv - 1); ton[e >>> 6] |= 1L << e; s[e >>> 6] |= 1L << e; });
+                for (int m : mats) pool.view(m).forEach((e, lv) -> { s[e >>> 6] |= 1L << e; pc[e]++; if (lex.ifApply(ty, e)) mx[e] += 1L << (lv - 1); });
+                int[] rv = new int[lex.ne]; long[] lk = new long[PRW];
+                resolve(pool, lex, t, ty, mx, ton, s, rv, lk);
+                int cn = Long.bitCount(lk[0]) + Long.bitCount(lk[1]);
+                if (cn == 0) return null;
+                int[] ev = new int[cn];
+                long w0 = 0, w1 = 0;
+                for (int e = 0, w = 0; e < lex.ne; e++) {
+                    if ((lk[e >>> 6] >>> e & 1L) == 0) continue;
+                    ev[w++] = e << 4 | rv[e];
+                    if (pc[e] >= 2) { if (e < 64) w0 |= 1L << e; else w1 |= 1L << (e - 64); }
+                }
+                return new Lock(ev, w0, w1);
+            }
+            static boolean ok(Lock lc, long[] sum, long[] d) {
+                if (lc == null) return true;
+                if (d[lc.ev.length] == 0) return true;
+                for (int i = 0; i < lc.ev.length; i++) if ((sum[i] + d[i]) >>> ((lc.ev[i] & 15) - 1) == 0L) return false;
+                return true;
+            }
+            static boolean applies(Pool pool, Lexicon t, int l2, int e, int w6, long eb) {
+                int tl2 = pool.typ[l2];
+                if (!t.ifStore[tl2] || !(t.book[tl2] || (t.ifApply[tl2 * PRW + w6] & eb) != 0)) return false;
+                return (t.conflict[e * PRW] & pool.pr[l2 * PRW]) == 0 && (t.conflict[e * PRW + 1] & pool.pr[l2 * PRW + 1]) == 0;
+            }
+            static void resolve(Pool pool, Lexicon lex, int t, int ty, long[] mx, long[] ton, long[] s, int[] rv, long[] lk) {
+                long[] d0 = new long[PRW];
+                for (int wd = 0; wd < PRW; wd++) for (long x = ton[wd]; x != 0; x &= x - 1) { int t2 = (wd << 6) + Long.numberOfTrailingZeros(x); d0[0] |= lex.conflict[t2 * PRW]; d0[1] |= lex.conflict[t2 * PRW + 1]; }
+                Arrays.fill(lk, 0L); Arrays.fill(rv, 0);
+                for (int e = 0; e < lex.ne; e++) {
+                    if (mx[e] == 0 || !lex.ifApply(ty, e) || (d0[e >>> 6] >>> e & 1L) != 0) continue;
+                    if (((lex.conflict[e * PRW] & s[0] & ~d0[0]) | (lex.conflict[e * PRW + 1] & s[1] & ~d0[1])) != 0) continue;
+                    int r = Math.min(Math.min(64 - Long.numberOfLeadingZeros(mx[e]), lex.maxLv[e]), MAX_LV);
+                    if (r <= pool.level(t, e)) continue;
+                    lk[e >>> 6] |= 1L << e; rv[e] = r;
+                }
+            }
+            static long lvw(Pool pool, int id, int e) { int lv = pool.level(id, e); return lv > 0 ? 1L << (lv - 1) : 0L; }
         }
 
         /** Weights of scoring heuristics for the greedy */
@@ -1363,9 +1591,7 @@ public final class Canere {
             final List<String> en = new ArrayList<>(), tn = new ArrayList<>();
             int enchant(String name, int maxLv, int aCost) { es.add(new int[]{ maxLv, aCost }); en.add(name); return es.size() - 1; }
             int type(String name, boolean ifBook, boolean damageable, boolean ifStore) { ts.add(new int[]{ ifBook ? 1 : 0, damageable ? 1 : 0, ifStore ? 1 : 0 }); tn.add(name); return ts.size() - 1; }
-            LexTrans conflict(int a, int b) {
-                if (a != b) pairs.add(new int[]{ a, b }); return this;
-            }
+            LexTrans conflict(int a, int b) { if (a != b) pairs.add(new int[]{ a, b }); return this; }
             LexTrans allow(int type, int e) { allow.add(new int[]{ type, e }); return this; }
             Lexicon begin() {
                 int ne = es.size(), nt = ts.size();
@@ -1384,8 +1610,7 @@ public final class Canere {
                 for (int[] p : pairs) {
                     int a = p[0], b = p[1];
                     chk(a, ne); chk(b, ne);
-                    con[a * PRW + (b >>> 6)] |= 1L << b;
-                    con[b * PRW + (a >>> 6)] |= 1L << a;
+                    con[a * PRW + (b >>> 6)] |= 1L << b; con[b * PRW + (a >>> 6)] |= 1L << a;
                 }
                 long[] ca = new long[nt * PRW];
                 for (int[] a : allow) {
@@ -1393,9 +1618,7 @@ public final class Canere {
                     ca[a[0] * PRW + (a[1] >>> 6)] |= 1L << a[1];
                 }
                 boolean[] bk = new boolean[nt], dmg = new boolean[nt], st = new boolean[nt];
-                for (int i = 0; i < nt; i++) {
-                    int[] s = ts.get(i); bk[i] = s[0] != 0; dmg[i] = s[1] != 0; st[i] = s[2] != 0;
-                }
+                for (int i = 0; i < nt; i++) { int[] s = ts.get(i); bk[i] = s[0] != 0; dmg[i] = s[1] != 0; st[i] = s[2] != 0; }
                 int nw = (ne + 15) >>> 4, pw = (ne + 63) >>> 6;
                 return new Lexicon(ne, nt, nw, pw, tr, pf, ml, fee, bf, con, ca, bk, dmg, st, en.toArray(new String[0]), tn.toArray(new String[0]));
             }
@@ -1414,16 +1637,13 @@ public final class Canere {
                 this.cap = c;
                 lv = new long[c * LVW]; pr = new long[c * PRW]; pen = new int[c]; typ = new int[c]; hsh = new long[c]; tab = new int[c * 2]; tMask = tab.length - 1;
             }
-            Lexicon lex() { return lex; }
-            int size() { return n; }
-            int intern(long[] l, long[] p2, int pen, int type) {
+            int intern(long[] l, long[] p2, int pen, int type, boolean t) {
                 if (pen < 0 || type < 0 || type >= lex.nt) throw new IllegalStateException("bad meta: pen=" + pen + " type=" + type);
-                long m0 = lex.ne >= 64 ? -1L : (1L << lex.ne) - 1L;
-                long m1 = lex.ne <= 64 ? 0L : lex.ne >= 128 ? -1L : (1L << (lex.ne - 64)) - 1L;
+                long m0 = lex.ne >= 64 ? -1L : (1L << lex.ne) - 1L, m1 = lex.ne <= 64 ? 0L : lex.ne >= 128 ? -1L : (1L << (lex.ne - 64)) - 1L;
                 if ((p2[0] & ~m0) != 0L || (p2[1] & ~m1) != 0L) throw new IllegalStateException("dirty presence: ne=" + lex.ne + " pr=" + Long.toHexString(p2[0]) + "," + Long.toHexString(p2[1]));
                 for (int i = lex.nw; i < LVW; i++) if (l[i] != 0L) throw new IllegalStateException("dirty levels beyond nw");
                 for (int i = lex.pw; i < PRW; i++) if (p2[i] != 0L) throw new IllegalStateException("dirty presence beyond pw");
-                long h = hs(l, p2, pen, type);
+                long h = hs(l, p2, pen, type, t);
                 int i = (int) h & tMask;
                 while (tab[i] != 0) {
                     int id = tab[i] - 1;
@@ -1437,6 +1657,8 @@ public final class Canere {
                 this.pen[id] = pen; typ[id] = type; hsh[id] = h; tab[i] = id + 1;
                 return id;
             }
+            Lexicon lex() { return lex; }
+            int size() { return n; }
             int level(int id, int e) { return (int) (lv[id * LVW + (e >>> 4)] >>> ((e & 15) << 2)) & 15; }
             int penalty(int id) { return pen[id]; }
             int type(int id) { return typ[id]; }
@@ -1475,11 +1697,12 @@ public final class Canere {
                     tab[i] = id + 1;
                 }
             }
-            long hs(long[] l, long[] p2, int pen, int type) {
+            long hs(long[] l, long[] p2, int pen, int type, boolean t) {
                 long h = 0x9E3779B97F4A7C15L;
                 for (int i = 0; i < lex.nw; i++) h = BitVec.mix64(h ^ l[i]);
                 for (int i = 0; i < lex.pw; i++) h = BitVec.mix64(h ^ p2[i]);
-                return BitVec.mix64(h ^ pen * 0xC2B2AE3D27D4EB4FL ^ type * 0x165667B19E3779F9L);
+                h = BitVec.mix64(h ^ pen * 0xC2B2AE3D27D4EB4FL ^ type * 0x165667B19E3779F9L);
+                return t ? h | Long.MIN_VALUE : h & Long.MAX_VALUE;
             }
         }
 
@@ -1492,7 +1715,7 @@ public final class Canere {
             int penalty() { return p.penalty(id); }
             int type() { return p.type(id); }
             boolean ifBook() { return p.ifBook(id); }
-            int enchantCount() { return Long.bitCount(p.pr[id * PRW]) + Long.bitCount(p.pr[id * PRW + 1]); }
+            int enchants() { return Long.bitCount(p.pr[id * PRW]) + Long.bitCount(p.pr[id * PRW + 1]); }
             String tName() { return t.tName[p.type(id)]; }
             void forEach(Visit v) {
                 long a = p.pr[id * PRW], b = p.pr[id * PRW + 1];
@@ -1504,15 +1727,15 @@ public final class Canere {
 
         /** Caches */
         static final class Cache {
-            long[] k, meta;
+            long[] k, meta, p;
             int[] st, cfa;
             int mask, cnt;
+            final int pN, pW;
             final Pool pool;
-            Cache(Pool pool, int cap) {
-                this.pool = pool;
+            Cache(Pool pool, int cap, int pN) {
+                this.pool = pool; this.pN = pN; pW = pN == 0 ? 0 : (pN + 1) >> 1;
                 int c = 16; while (c < cap) c <<= 1;
-                k = new long[c]; meta = new long[c];
-                st = new int[c]; cfa = new int[c];
+                k = new long[c]; meta = new long[c]; p = pW > 0 ? new long[c * pW] : null; st = new int[c]; cfa = new int[c];
                 mask = c - 1;
             }
             boolean get(int l, int r, Probe p) {
@@ -1520,15 +1743,22 @@ public final class Canere {
                 int i = (int) BitVec.mix64(key) & mask;
                 while (k[i] != 0) {
                     if (k[i] == key) {
-                        int s = st[i];
-                        long m = meta[i];
-                        p.ok = m < 0;
-                        p.cost = (m >>> 32) & 0x7FFFFFFFL;
-                        p.newPenalty = (int) m;
+                        int s = st[i]; long m = meta[i];
+                        p.ok = m < 0; p.cost = (m >>> 32) & 0x7FFFFFFFL; p.newPenalty = (int) m;
                         int f = cfa[i];
-                        p.conflicts = f >>> 16; p.applied = (f >>> 8) & 0xFF; p.upgraded = f & 0xFF;
-                        p.newType = pool.type(l);
-                        p.id = s >= 0 ? s : -1;
+                        p.conflicts = f >>> 16; p.applied = (f >>> 8) & 0xFF; p.upgraded = f & 0xFF; p.newType = pool.type(l); p.id = s >= 0 ? s : -1;
+                        if (pN > 0) {
+                            long w = this.p[i * pW];
+                            if (w >= 0) p.p[pN] = 0L;
+                            else {
+                                p.p[pN] = 1L;
+                                for (int j = 0, b = i * pW; j < pW; j++) {
+                                    long v = this.p[b + j];
+                                    p.p[j << 1] = (int) (v & 0x7FFFFFFFL) - (1 << 30);
+                                    if ((j << 1 | 1) < pN) p.p[j << 1 | 1] = (int) (v >>> 32 & 0x7FFFFFFFL) - (1 << 30);
+                                }
+                            }
+                        }
                         return true;
                     }
                     i = (i + 1) & mask;
@@ -1545,12 +1775,23 @@ public final class Canere {
                 k[i] = p.key;
                 meta[i] = (p.ok ? Long.MIN_VALUE : 0L) | ((p.cost & 0x7FFFFFFFL) << 32) | (p.newPenalty & 0xFFFFFFFFL);
                 cfa[i] = (p.conflicts << 16) | (p.applied << 8) | p.upgraded;
+                if (pN > 0) {
+                    if (p.p[pN] == 0L) this.p[i * pW] = 0L;
+                    else {
+                        for (int j = 0, b = i * pW; j < pW; j++) {
+                            long w = (p.p[j << 1] + (1L << 30)) & 0x7FFFFFFFL;
+                            if ((j << 1 | 1) < pN) w |= ((p.p[j << 1 | 1] + (1L << 30)) & 0x7FFFFFFFL) << 32;
+                            this.p[b + j] = w;
+                        }
+                        this.p[i * pW] |= Long.MIN_VALUE;
+                    }
+                }
                 st[i] = stateId >= 0 ? stateId : (p.ok ? -1 : -2);
                 cnt++;
             }
             void grow() {
                 int c = k.length << 1;
-                long[] k2 = new long[c]; long[] m2 = new long[c];
+                long[] k2 = new long[c]; long[] m2 = new long[c]; long[] p2 = pW > 0 ? new long[c * pW] : null;
                 int[] s2 = new int[c]; int[] f2 = new int[c];
                 int m = c - 1;
                 for (int j = 0; j < k.length; j++) {
@@ -1558,8 +1799,9 @@ public final class Canere {
                     int i = (int) BitVec.mix64(k[j]) & m;
                     while (k2[i] != 0) i = (i + 1) & m;
                     k2[i] = k[j]; m2[i] = meta[j]; s2[i] = st[j]; f2[i] = cfa[j];
+                    if (pW > 0) System.arraycopy(p, j * pW, p2, i * pW, pW);
                 }
-                k = k2; meta = m2; st = s2; cfa = f2; mask = m;
+                k = k2; meta = m2; st = s2; cfa = f2; p = p2; mask = m;
             }
         }
 
@@ -1568,20 +1810,6 @@ public final class Canere {
             final int n;
             final int[] l, r, p, leaf;
             final String[] name;
-            Tr(String[] ns, int[] leafs) {
-                n = leafs.length;
-                int m = 2 * n - 1;
-                l = new int[m]; r = new int[m]; p = new int[m]; leaf = new int[n];
-                name = ns == null ? null : Arrays.copyOf(ns, n);
-                System.arraycopy(leafs, 0, leaf, 0, n);
-                for (int i = 0; i < m; i++) { l[i] = r[i] = -1; p[i] = -1; }
-                for (int i = 1; i < n; i++) {
-                    int idx = n - 1 + i;
-                    l[idx] = i == 1 ? 0 : idx - 1;
-                    r[idx] = i;
-                }
-                refParents();
-            }
             Tr(int[] left, int[] right, int[] leafs, String[] names) {
                 n = leafs.length;
                 if (left.length != 2 * n - 1) throw new IllegalArgumentException("bad topology size");
@@ -1609,7 +1837,6 @@ public final class Canere {
                 for (int s = x; s >= 0; s = p[s]) if (s == a) return true;
                 return false;
             }
-            /** Swaps two subtrees */
             boolean swap(int a, int b) {
                 int m = 2 * n - 1;
                 if (a == b || a < 0 || b < 0 || a >= m || b >= m) return false;
@@ -1650,7 +1877,7 @@ public final class Canere {
 
         /** Node evaluation */
         static final class Eval {
-            final int[] ids, aStep, sub, conflicts; // step & subtree costs
+            final int[] ids, aStep, sub, conflicts;
             boolean feasible;
             long total = -1;
             int failIdx = -1;
@@ -1677,15 +1904,11 @@ public final class Canere {
                 tr.postOrder(post);
                 for (int i = 0; i < n - 1; i++) {
                     int s = post[i];
-                    rs.lu[i] = ev.ids[tr.l[s]];
-                    rs.ru[i] = ev.ids[tr.r[s]];
+                    rs.lu[i] = ev.ids[tr.l[s]]; rs.ru[i] = ev.ids[tr.r[s]];
                 }
                 return rs;
             }
-            static int at(WSet ws, int id, int excl) {
-                for (int i = 0; i < ws.cnt; i++) if (i != excl && ws.liveV[i] == id) return i;
-                return -1;
-            }
+            static int at(WSet ws, int id, int e) { return ws.at(id, e); }
         }
 
         /** Sdp Mem */
@@ -1700,8 +1923,7 @@ public final class Canere {
                     long bs = INF;
                     for (int a = 1; a < s; a++) {
                         int mx = Math.max(a, s - a);
-                        long rl = (1L << (32 - Integer.numberOfLeadingZeros(mx - 1) + 1)) - 1;
-                        long v = sdp[a] + sdp[s - a] + rl;
+                        long rl = (1L << (32 - Integer.numberOfLeadingZeros(mx - 1) + 1)) - 1, v = sdp[a] + sdp[s - a] + rl;
                         if (v < bs) bs = v;
                     }
                     sdp[s] = bs;
@@ -1736,32 +1958,43 @@ public final class Canere {
         /** Dynamic Set */
         static final class WSet {
             final int n;
+            final Pool pool; final Lock lc;
             final int[] liveS, liveV, L, R;
-            int[] idCnt;
+            int[] idCnt, ipx, spx;
+            long[] p;
             int cnt, cur;
             long cost, msh;
-            WSet(int[] ss) { this(ss, ss.length); }
-            WSet(int[] ss, int len) {
-                n = len;
+            WSet(Pool pool, Lock lc, int[] ss) { this(pool, lc, ss, ss.length); }
+            WSet(Pool pool, Lock lc, int[] ss, int len) {
+                n = len; this.pool = pool; this.lc = lc;
                 int m = 2 * n - 1;
                 liveS = new int[n]; liveV = new int[n];
                 L = new int[m]; R = new int[m];
                 Arrays.fill(L, -1); Arrays.fill(R, -1);
-                int mx = 0;
-                long h = 0;
+                int mx = 0; long h = 0;
                 for (int i = 0; i < n; i++) {
                     liveS[i] = i; liveV[i] = ss[i]; h += sig(ss[i]);
                     if (ss[i] > mx) mx = ss[i];
                 }
-                idCnt = new int[mx + 1];
-                for (int i = 0; i < n; i++) idCnt[ss[i]]++;
+                idCnt = new int[mx + 1]; ipx = new int[mx + 1]; Arrays.fill(ipx, -1); spx = new int[2 * n - 1];
+                for (int i = 0; i < n; i++) { idCnt[ss[i]]++; if (ipx[ss[i]] < 0) ipx[ss[i]] = i; spx[liveS[i]] = i; }
                 cnt = n; cur = n; msh = h;
+                if (lc == null) p = null;
+                else {
+                    p = new long[lc.ev.length];
+                    for (int k = 0; k < lc.ev.length; k++) {
+                        long s2 = 0;
+                        for (int i = 0; i < n; i++) s2 += Lock.lvw(pool, ss[i], lc.ev[k] >>> 4);
+                        p[k] = s2;
+                    }
+                }
             }
             WSet(WSet o) {
-                n = o.n;
+                n = o.n; pool = o.pool; lc = o.lc;
                 liveS = o.liveS.clone(); liveV = o.liveV.clone();
                 L = o.L.clone(); R = o.R.clone();
-                idCnt = o.idCnt.clone();
+                idCnt = o.idCnt.clone(); ipx = o.ipx.clone(); spx = o.spx.clone();
+                p = o.p == null ? null : o.p.clone();
                 cnt = o.cnt; cur = o.cur; cost = o.cost; msh = o.msh;
             }
             WSet copy() { return new WSet(this); }
@@ -1770,44 +2003,51 @@ public final class Canere {
                 System.arraycopy(o.liveV, 0, liveV, 0, n);
                 System.arraycopy(o.L, 0, L, 0, 2 * n - 1);
                 System.arraycopy(o.R, 0, R, 0, 2 * n - 1);
-                if (idCnt.length < o.idCnt.length) idCnt = new int[o.idCnt.length * 2];
+                if (idCnt.length < o.idCnt.length) { idCnt = new int[o.idCnt.length * 2]; ipx = new int[idCnt.length]; }
                 System.arraycopy(o.idCnt, 0, idCnt, 0, o.idCnt.length);
                 Arrays.fill(idCnt, o.idCnt.length, idCnt.length, 0);
+                System.arraycopy(o.ipx, 0, ipx, 0, o.idCnt.length);
+                System.arraycopy(o.spx, 0, spx, 0, spx.length);
+                if (p != null) System.arraycopy(o.p, 0, p, 0, p.length);
                 cnt = o.cnt; cur = o.cur; cost = o.cost; msh = o.msh;
             }
-            void reset(int[] ss) {
-                int mx = 0;
-                long h = 0;
-                for (int i = 0; i < n; i++) {
-                    liveS[i] = i; liveV[i] = ss[i]; h += sig(ss[i]);
-                    if (ss[i] > mx) mx = ss[i];
-                }
-                if (idCnt.length <= mx) idCnt = new int[(mx + 1) * 2];
-                else Arrays.fill(idCnt, 0);
-                for (int i = 0; i < n; i++) idCnt[ss[i]]++;
-                Arrays.fill(L, -1); Arrays.fill(R, -1);
-                cnt = n; cur = n; cost = 0; msh = h;
-            }
-            void take(int i, int j, int dir, int nid) {
+            void take(int i, int j, int dir, int nid, long[] d) {
                 int s = cur++;
                 L[s] = dir == 0 ? liveS[i] : liveS[j];
                 R[s] = dir == 0 ? liveS[j] : liveS[i];
                 int u = liveV[i], v = liveV[j];
                 msh += sig(nid) - sig(u) - sig(v);
-                if (nid >= idCnt.length) idCnt = Arrays.copyOf(idCnt, Math.max(nid + 1, idCnt.length * 2));
+                if (p != null && d[p.length] != 0L) for (int k = 0; k < p.length; k++) p[k] += d[k];
+                if (nid >= idCnt.length) {
+                    int ol = idCnt.length;
+                    idCnt = Arrays.copyOf(idCnt, Math.max(nid + 1, idCnt.length * 2)); ipx = Arrays.copyOf(ipx, idCnt.length);
+                    Arrays.fill(ipx, ol, ipx.length, -1);
+                }
                 idCnt[u]--; idCnt[v]--; idCnt[nid]++;
                 liveS[i] = s; liveV[i] = nid; liveS[j] = liveS[cnt - 1]; liveV[j] = liveV[cnt - 1];
                 cnt--;
             }
-            static long sig(int id) { return BitVec.mix64((id + 1) * 0x9E3779B97F4A7C15L); }
-            int pos(int slot) {
-                for (int i = 0; i < cnt; i++) if (liveS[i] == slot) return i;
+            int pos(int sp) {
+                int c = spx[sp];
+                if (c >= 0 && c < cnt && liveS[c] == sp) return c;
+                for (int i = 0; i < cnt; i++) if (liveS[i] == sp) { spx[sp] = i; return i; }
+                return -1;
+            }
+            int at(int id, int e) {
+                if (id < ipx.length && idCnt[id] == 1) {
+                    int c = ipx[id];
+                    if (c >= 0 && c < cnt && c != e && liveV[c] == id) return c;
+                    for (int i = 0; i < cnt; i++) if (i != e && liveV[i] == id) { ipx[id] = i; return i; }
+                    return -1;
+                }
+                for (int i = 0; i < cnt; i++) if (i != e && liveV[i] == id) return i;
                 return -1;
             }
             Tr trs(int[] leafs, String[] names) { return new Tr(L, R, leafs, names); }
+            static long sig(int id) { return BitVec.mix64((id + 1) * 0x9E3779B97F4A7C15L); }
         }
 
-        /** O(1) Generation Set */
+        /** Generation Set */
         static final class PairSeen {
             final long[] k; final int[] g; final int mask; int gen;
             PairSeen(int cap) { int c = 1024; while (c < cap) c <<= 1; k = new long[c]; g = new int[c]; mask = c - 1; }

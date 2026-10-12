@@ -16,10 +16,14 @@
 
 <h2 style="margin-top: 0.4em;">Installation</h2>
 
+<blockquote style="color: #777777; border-left: 4px solid #d0d7de; margin-left: 0; padding-left: 1em;">
+  <strong>Not on Maven Central.</strong>
+</blockquote>
+
 ```groovy
-dependencies {
-    implementation "io.github.mixforce:mixing-kore:1.0.2"
-}
+// dependencies {
+//     implementation "io.github.mixforce:mixing-kore:1.0.3"
+// }
 ```
 
 <h2 style="margin-top: 0.4em;">Constraints</h2>

@@ -12,10 +12,12 @@ _Performance algorithm library for Minecraft mods._
 
 ## Installation
 
+> **Not on Maven Central.**
+
 ```groovy
-dependencies {
-    implementation "io.github.mixforce:mixing-kore:1.0.2"
-}
+// dependencies {
+//     implementation "io.github.mixforce:mixing-kore:1.0.3"
+// }
 ```
 
 ## Constraints
