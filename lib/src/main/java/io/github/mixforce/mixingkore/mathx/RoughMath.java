@@ -53,7 +53,7 @@ public final class RoughMath {
     }
 
     public static float sin(float x) {
-        int n = (int) Math.fma(x, 0.31830987f, 12582912f) - 12582912; //Math.round(x * 0.31830987f);
+        int n = (int) Math.fma(x, 0.31830987f, 12582912f) - 12582912;
         float r = Math.fma(-n, PF2, x);
         float r2 = r * r;
         float s = r * Math.fma(r2, Math.fma(r2, Math.fma(r2, W3, W2), W1), 1f);
