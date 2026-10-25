@@ -1,6 +1,6 @@
-// <editor-fold defaultstate="collapsed" desc="// SPDX: LGPL-3.0-or-later | Copyright (C) 2026 MixForce">
+// <editor-fold defaultstate="collapsed" desc="// SPDX: LGPL-3.0-or-later | Copyright (c) 2026 MixForce">
 /* SPDX-License-Identifier: LGPL-3.0-or-later */
-/* Copyright (C) 2026 MixForce */
+/* Copyright (c) 2026 MixForce */
 // </editor-fold>
 package io.github.mixforce.mixingkore.mathx;
 
@@ -12,9 +12,10 @@ import jdk.incubator.vector.VectorSpecies;
 public final class BitVec {
     private BitVec() {}
 
-    private static final byte[] SEL8 = Platform.BW ? sel8() : null;
+    static final byte[] SEL8 = Platform.BW ? sel8() : null;
     static final long M2 = 0x5555555555555555L, M4 = 0x3333333333333333L, M8 = 0x0f0f0f0f0f0f0f0fL, H4 = 0x1111111111111111L;
-    private static final int VEC_MIN_N = 16;
+    static final long K1Q = 0x4F74430C22A54005L, K1R = 0xD80B6274BA78B77AL, K2Q = 0x9CB4B2F8129337DBL, K2R = 0xA06F63A7EA11A3A5L, K3Q = 0xF1DE83E19937733DL, K3R = 0xED9DE798E8AE70A5L;
+    static final int VEC_MIN_N = 16;
 
     public static long msk(int w) { return w == 64 ? -1L : (1L << w) - 1L; }
     public static long msk(int o, int w) { return msk(w) << o; }
@@ -164,7 +165,7 @@ public final class BitVec {
         return c + Long.bitCount(v[j] & mle(t));
     }
 
-    private static byte[] sel8() {
+    static byte[] sel8() {
         byte[] t = new byte[2048];
         for (int b = 0; b < 256; b++) {
             int x = b, p = 0;
@@ -234,27 +235,44 @@ public final class BitVec {
         out[0] = dep(lo, o, n, v);
         out[1] = dep(hi, 0, w - n, v >>> n);
     }
-    public static long mul128(long a, long b, long[] out) {
-        out[0] = a * b; return out[1] = Math.unsignedMultiplyHigh(a, b);
-    }
-    private static void mixr(long[] o, long k) {
+    public static long mul128(long a, long b, long[] out) { out[0] = a * b; return out[1] = Math.unsignedMultiplyHigh(a, b); }
+
+    static void mixr(long[] o, long k) {
         long l = o[0], h = o[1];
-        l ^= l >>> 33 | h << 31;
-        h >>>= 33;
+        l ^= l >>> 33 | h << 31; h ^= h >>> 33;
         o[0] = l * k; o[1] = h * k + Math.unsignedMultiplyHigh(l, k);
     }
-    public static void mix128(long lo, long hi, long[] out) {
+    static long ix33(long y) { return y ^ (y >>> 33); }
+    static void unmul(long oLo, long oHi, long q, long r, long[] out) {
+        long lo = oLo * q;
+        long hi = Math.unsignedMultiplyHigh(oLo, q) + oLo * r + oHi * q;
         out[0] = lo; out[1] = hi;
-        mixr(out, 0xff51afd7ed558ccdL);
-        mixr(out, 0xc4ceb9fe1a85ec53L);
-        long l = out[0], h = out[1];
-        out[0] = l ^ (l >>> 33 | h << 31);
-        out[1] = h ^ (h >>> 33);
     }
     public static long mix64(long h) {
         h ^= h >>> 33; h *= 0xff51afd7ed558ccdL;
         h ^= h >>> 33; h *= 0xc4ceb9fe1a85ec53L;
         h ^= h >>> 33; return h;
+    }
+    public static long unmix64(long h) {
+        h ^= h >>> 33; h *= K2Q;
+        h ^= h >>> 33; h *= K1Q;
+        return h ^ (h >>> 33);
+    }
+    public static void mix128(long lo, long hi, long[] out) {
+        out[0] = lo; out[1] = hi;
+        mixr(out, 0xff51afd7ed558ccdL);
+        mixr(out, 0xc4ceb9fe1a85ec53L);
+        mixr(out, 0x9E3779B97F4A7C15L);
+        long l = out[0], h = out[1];
+        out[0] = l ^ (l >>> 33 | h << 31);
+        out[1] = h ^ (h >>> 33);
+    }
+    public static void unmix128(long lo, long hi, long[] out) {
+        long h = ix33(hi), l = ix33(lo ^ (h << 31));
+        unmul(l, h, K3Q, K3R, out); h = ix33(out[1]); l = ix33(out[0] ^ (h << 31));
+        unmul(l, h, K2Q, K2R, out); h = ix33(out[1]); l = ix33(out[0] ^ (h << 31));
+        unmul(l, h, K1Q, K1R, out); h = ix33(out[1]); l = ix33(out[0] ^ (h << 31));
+        out[0] = l; out[1] = h;
     }
 
     public static final class Rank {

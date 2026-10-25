@@ -1,6 +1,6 @@
-// <editor-fold defaultstate="collapsed" desc="// SPDX: LGPL-3.0-or-later | Copyright (C) 2026 MixForce">
+// <editor-fold defaultstate="collapsed" desc="// SPDX: LGPL-3.0-or-later | Copyright (c) 2026 MixForce">
 /* SPDX-License-Identifier: LGPL-3.0-or-later */
-/* Copyright (C) 2026 MixForce */
+/* Copyright (c) 2026 MixForce */
 // </editor-fold>
 package io.github.mixforce.mixingkore.ops;
 
@@ -23,18 +23,18 @@ public final class FastLoc {
     private FastLoc() {}
 
     public static final class Pos {
-        private static final int PACKED_X_LENGTH = 26;
-        private static final int PACKED_Y_LENGTH = 12;
-        private static final int PACKED_Z_LENGTH = 26;
-        private static final long PACKED_X_MASK = (1L << PACKED_X_LENGTH) - 1L;
-        private static final long PACKED_Y_MASK = (1L << PACKED_Y_LENGTH) - 1L;
-        private static final long PACKED_Z_MASK = (1L << PACKED_Z_LENGTH) - 1L;
-        private static final int Y_OFFSET = 0;
-        private static final int Z_OFFSET = PACKED_Y_LENGTH;
-        private static final int X_OFFSET = PACKED_Y_LENGTH + PACKED_Z_LENGTH;
+        static final int PACKED_X_LENGTH = 26;
+        static final int PACKED_Y_LENGTH = 12;
+        static final int PACKED_Z_LENGTH = 26;
+        static final long PACKED_X_MASK = (1L << PACKED_X_LENGTH) - 1L;
+        static final long PACKED_Y_MASK = (1L << PACKED_Y_LENGTH) - 1L;
+        static final long PACKED_Z_MASK = (1L << PACKED_Z_LENGTH) - 1L;
+        static final int Y_OFFSET = 0;
+        static final int Z_OFFSET = PACKED_Y_LENGTH;
+        static final int X_OFFSET = PACKED_Y_LENGTH + PACKED_Z_LENGTH;
         public static final Pos ZERO = new Pos(0, 0, 0);
         public static final Pos ONE = new Pos(1, 1, 1);
-        private final long l;
+        final long l;
         public Pos(int x, int y, int z) { this.l = asLong(x, y, z); }
         public Pos(long l) { this.l = l; }
         public Pos(BlockPos pos) { this.l = pos.asLong(); }
@@ -92,7 +92,7 @@ public final class FastLoc {
             return (dx | dy | dz) == 0 ? l : asLong(extX(l) + dx, extY(l) + dy, extZ(l) + dz);
         }
         public static final class Mutable {
-            private long l;
+            long l;
             public Mutable() { this.l = 0L; }
             public Mutable(int x, int y, int z) { this.l = Pos.asLong(x, y, z); }
             public Mutable(long l) { this.l = l; }
@@ -145,8 +145,8 @@ public final class FastLoc {
             public String toString() { return "(" + x() + ", " + y() + ", " + z() + ")"; }
         }
         public static final class List {
-            private long[] a;
-            private int size;
+            long[] a;
+            int size;
             public List(int c) { a = new long[Math.max(8, c)]; }
             public List() { this(8); }
             public int size() { return size; }
@@ -197,7 +197,7 @@ public final class FastLoc {
             public void trim() { if (size < a.length) a = Arrays.copyOf(a, size); }
             public void sort() { Arrays.sort(a, 0, size); }
             public int binarySearch(long l) { return Arrays.binarySearch(a, 0, size, l); }
-            private void grow(int cap) { a = Arrays.copyOf(a, cap); }
+            void grow(int cap) { a = Arrays.copyOf(a, cap); }
             public void map(LVMap fn, long[] out) {
                 vg();
                 if (out.length < size) throw new IllegalArgumentException("out too small: " + out.length + " < " + size);
@@ -232,7 +232,7 @@ public final class FastLoc {
                 }
                 return c;
             }
-            private static void vg() { if (!Platform.VECTOR_OK) throw new IllegalStateException("jdk.incubator.vector absent"); }
+            static void vg() { if (!Platform.VECTOR_OK) throw new IllegalStateException("jdk.incubator.vector absent"); }
             @FunctionalInterface
             public interface Op { void apply(Mutable m); }
             @FunctionalInterface
@@ -324,7 +324,7 @@ public final class FastLoc {
         public Vec3 vec3() { return new Vec3(x, y, z); }
         public Pos floorPos() { return new Pos(x, y, z); }
         public Mutable mutable() { return new Mutable(this); }
-        private static boolean tst(double ax, double ay, double az, double bx, double by, double bz) { return Double.doubleToLongBits(ax) == Double.doubleToLongBits(bx) && Double.doubleToLongBits(ay) == Double.doubleToLongBits(by) && Double.doubleToLongBits(az) == Double.doubleToLongBits(bz); }
+        static boolean tst(double ax, double ay, double az, double bx, double by, double bz) { return Double.doubleToLongBits(ax) == Double.doubleToLongBits(bx) && Double.doubleToLongBits(ay) == Double.doubleToLongBits(by) && Double.doubleToLongBits(az) == Double.doubleToLongBits(bz); }
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
@@ -445,8 +445,8 @@ public final class FastLoc {
             public String toString() { return "(" + x + ", " + y + ", " + z + ")"; }
         }
         public static final class List {
-            private double[] xs, ys, zs;
-            private int size;
+            double[] xs, ys, zs;
+            int size;
             public List(int c) { xs = new double[Math.max(8, c)]; ys = new double[xs.length]; zs = new double[xs.length]; }
             public List() { this(8); }
             public int size() { return size; }
@@ -511,7 +511,7 @@ public final class FastLoc {
                 if (n > xs.length) grow(n);
                 size = n;
             }
-            private void grow(int c) { xs = Arrays.copyOf(xs, c); ys = Arrays.copyOf(ys, c); zs = Arrays.copyOf(zs, c); }
+            void grow(int c) { xs = Arrays.copyOf(xs, c); ys = Arrays.copyOf(ys, c); zs = Arrays.copyOf(zs, c); }
             public void map(V3Map fn, double[] out) {
                 vg();
                 if (out.length < size) throw new IllegalArgumentException("out too small: " + out.length + " < " + size);
@@ -641,7 +641,7 @@ public final class FastLoc {
                 }
                 return c;
             }
-            private static void vg() { if (!Platform.VECTOR_OK) throw new IllegalStateException("jdk.incubator.vector absent"); }
+            static void vg() { if (!Platform.VECTOR_OK) throw new IllegalStateException("jdk.incubator.vector absent"); }
             @FunctionalInterface
             public interface Op { void apply(Mutable m); }
             @FunctionalInterface
@@ -744,7 +744,7 @@ public final class FastLoc {
         public Vec3 vec3() { return new Vec3(x, y, z); }
         public Pos floorPos() { return new Pos(x, y, z); }
         public Mutable mutable() { return new Mutable(this); }
-        private static boolean tst(float ax, float ay, float az, float bx, float by, float bz) { return Float.floatToIntBits(ax) == Float.floatToIntBits(bx) && Float.floatToIntBits(ay) == Float.floatToIntBits(by) && Float.floatToIntBits(az) == Float.floatToIntBits(bz); }
+        static boolean tst(float ax, float ay, float az, float bx, float by, float bz) { return Float.floatToIntBits(ax) == Float.floatToIntBits(bx) && Float.floatToIntBits(ay) == Float.floatToIntBits(by) && Float.floatToIntBits(az) == Float.floatToIntBits(bz); }
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
@@ -874,8 +874,8 @@ public final class FastLoc {
             public String toString() { return "(" + x + ", " + y + ", " + z + ")"; }
         }
         public static final class List {
-            private float[] xs, ys, zs;
-            private int size;
+            float[] xs, ys, zs;
+            int size;
             public List(int c) { xs = new float[Math.max(8, c)]; ys = new float[xs.length]; zs = new float[xs.length]; }
             public List() { this(8); }
             public int size() { return size; }
@@ -940,7 +940,7 @@ public final class FastLoc {
                 if (n > xs.length) grow(n);
                 size = n;
             }
-            private void grow(int cap) { xs = Arrays.copyOf(xs, cap); ys = Arrays.copyOf(ys, cap); zs = Arrays.copyOf(zs, cap); }
+            void grow(int cap) { xs = Arrays.copyOf(xs, cap); ys = Arrays.copyOf(ys, cap); zs = Arrays.copyOf(zs, cap); }
             public void map(V3FMap fn, float[] out) {
                 vg();
                 if (out.length < size) throw new IllegalArgumentException("out too small: " + out.length + " < " + size);
@@ -1070,7 +1070,7 @@ public final class FastLoc {
                 }
                 return c;
             }
-            private static void vg() { if (!Platform.VECTOR_OK) throw new IllegalStateException("jdk.incubator.vector absent"); }
+            static void vg() { if (!Platform.VECTOR_OK) throw new IllegalStateException("jdk.incubator.vector absent"); }
             @FunctionalInterface
             public static interface Op { void apply(Mutable m); }
             @FunctionalInterface

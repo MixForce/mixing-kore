@@ -1,18 +1,18 @@
-// <editor-fold defaultstate="collapsed" desc="// SPDX: LGPL-3.0-or-later | Copyright (C) 2026 MixForce">
+// <editor-fold defaultstate="collapsed" desc="// SPDX: LGPL-3.0-or-later | Copyright (c) 2026 MixForce">
 /* SPDX-License-Identifier: LGPL-3.0-or-later */
-/* Copyright (C) 2026 MixForce */
+/* Copyright (c) 2026 MixForce */
 // </editor-fold>
 package io.github.mixforce.mixingkore.mathx;
 
 public final class RoughMath {
     private RoughMath() {}
 
-    private static final float LN2F = 0.6931472f, PF2 = 3.1415927f, HPF2 = 1.5707964f;
-    private static final float EM = 12102203f, EB = 1064986823f, PM = 8388608f;
-    private static final float G0 = -2.51285648345947265625f, G1 = 4.070096492767333984375f, G2 = -2.1206815242767333984375f, G3 = 0.645145475864410400390625f, G4 = -8.1616364419460296630859375e-2f;
-    private static final float W1 = -0.16665832698345184326171875f, W2 = 8.31404142081737518310546875e-3f, W3 = -1.85360040632076561450958251953125e-4f;
-    private static final float A0 = 0x1.ffe432p-1f, A1 = -0x1.4da0c4p-2f, A2 = 0x1.3ea034p-3f, A3 = -0x1.6b1fecp-5f;
-    private static final float B1 = 8.3143532276153564453125e-2f, B2 = 2.041300944983959197998046875e-2f, B3 = 1.217094599269330501556396484375e-3f, B4 = 5.940486676990985870361328125e-3f;
+    static final float LN2F = 0.6931472f, PF2 = 3.1415927f, HPF2 = 1.5707964f;
+    static final float EM = 12102203f, EB = 1064986823f, PM = 8388608f;
+    static final float G0 = -2.51285648345947265625f, G1 = 4.070096492767333984375f, G2 = -2.1206815242767333984375f, G3 = 0.645145475864410400390625f, G4 = -8.1616364419460296630859375e-2f;
+    static final float W1 = -0.16665832698345184326171875f, W2 = 8.31404142081737518310546875e-3f, W3 = -1.85360040632076561450958251953125e-4f;
+    static final float A0 = 0x1.ffe432p-1f, A1 = -0x1.4da0c4p-2f, A2 = 0x1.3ea034p-3f, A3 = -0x1.6b1fecp-5f;
+    static final float B1 = 8.3143532276153564453125e-2f, B2 = 2.041300944983959197998046875e-2f, B3 = 1.217094599269330501556396484375e-3f, B4 = 5.940486676990985870361328125e-3f;
 
     public static float exp(float x) {
         x = x > 88.7f ? 88.7f : x < -87.3f ? -87.3f : x;

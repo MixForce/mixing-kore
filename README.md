@@ -10,6 +10,7 @@
 
 - <code style="font-style: italic;">AccurateMath</code>, <code style="font-style: italic;">FastMath</code>, <code style="font-style: italic;">RoughMath</code> · Approx. math
 - <code style="font-style: italic;">BitVec</code> · Bit packing and bitwise operations.
+- <code style="font-style: italic;">Nyan384</code> · Stat. RNG
 - <code style="font-style: italic;">Arcanum</code> · Stronghold ray dynalocation.
 - <code style="font-style: italic;">Canere</code> · Hybrid heuristic anvil solver.
 - <code style="font-style: italic;">FastLoc</code> · Performance <code>Vec3</code> / <code>BlockPos</code> alternatives.
@@ -24,7 +25,7 @@
 
 ```groovy
  dependencies {
-     implementation "io.github.mixforce:mixing-kore:1.0.4"
+     implementation "io.github.mixforce:mixing-kore:1.0.5"
  }
 ```
 

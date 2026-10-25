@@ -1,15 +1,15 @@
 [versions]
-mod-version = "1.0.4"
+mod-version = "1.0.5"
 jmhPlugin = "0.7.3"
 jmh = "1.37"
 vanniktech-publish = "0.37.0"
 
 # Fabric (https://fabricmc.net/develop)
 minecraft = "26.3"
-fabric-loader = "0.19.5"
-fabric-api = "0.164.0+26.3"
+fabric-loader = "0.20.1"
+fabric-api = "0.165.0+26.3"
 # Loom (https://github.com/FabricMC/fabric-loom)
-loom = "1.18-SNAPSHOT"
+loom = "1.19-SNAPSHOT"
 
 [libraries]
 minecraft = { module = "com.mojang:minecraft", version.ref = "minecraft" }

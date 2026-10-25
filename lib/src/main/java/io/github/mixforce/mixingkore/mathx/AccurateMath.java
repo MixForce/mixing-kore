@@ -1,7 +1,7 @@
-// <editor-fold defaultstate="collapsed" desc="// SPDX: LGPL-3.0-or-later | Copyright (C) 2026 MixForce & Arm (1999-2026)">
+// <editor-fold defaultstate="collapsed" desc="// SPDX: LGPL-3.0-or-later | Copyright (c) 2026 MixForce & Arm (1999-2026)">
 /*
  * SPDX-License-Identifier: LGPL-3.0-or-later
- * Copyright (C) 2026 MixForce
+ * Copyright (c) 2026 MixForce
  * Modified from Arm's optimized-routines.
  * Original Copyright (c) 1999-2026, Arm Limited.
  */
@@ -11,29 +11,29 @@ package io.github.mixforce.mixingkore.mathx;
 public final class AccurateMath {
     private AccurateMath() {}
 
-    private static final long[] ET = {0x3ff0000000000000L, 0x3fefd9b0d3158574L, 0x3fefb5586cf9890fL, 0x3fef9301d0125b51L, 0x3fef72b83c7d517bL, 0x3fef54873168b9aaL, 0x3fef387a6e756238L, 0x3fef1e9df51fdee1L, 0x3fef06fe0a31b715L, 0x3feef1a7373aa9cbL, 0x3feedea64c123422L, 0x3feece086061892dL, 0x3feebfdad5362a27L, 0x3feeb42b569d4f82L, 0x3feeab07dd485429L, 0x3feea47eb03a5585L, 0x3feea09e667f3bcdL, 0x3fee9f75e8ec5f74L, 0x3feea11473eb0187L, 0x3feea589994cce13L, 0x3feeace5422aa0dbL, 0x3feeb737b0cdc5e5L, 0x3feec49182a3f090L, 0x3feed503b23e255dL, 0x3feee89f995ad3adL, 0x3feeff76f2fb5e47L, 0x3fef199bdd85529cL, 0x3fef3720dcef9069L, 0x3fef5818dcfba487L, 0x3fef7c97337b9b5fL, 0x3fefa4afa2a490daL, 0x3fefd0765b6e4540L};
-    private static final double ILN2 = 0x1.71547652b82fep5, MS = 0x1.8p52;
-    private static final double E0 = 0x1.c6af84b912394p-20, E1 = 0x1.ebfce50fac4f3p-13, E2 = 0x1.62e42ff0c52d6p-6;
-    private static final double[] IC = {0x1.661ec79f8f3bep0, 0x1.571ed4aaf883dp0, 0x1.49539f0f010bp0, 0x1.3c995b0b80385p0, 0x1.30d190c8864a5p0, 0x1.25e227b0b8eap0, 0x1.1bb4a4a1a343fp0, 0x1.12358f08ae5bap0, 0x1.0953f419900a7p0, 0x1p0, 0x1.e608cfd9a47acp-1, 0x1.ca4b31f026aap-1, 0x1.b2036576afce6p-1, 0x1.9c2d163a1aa2dp-1, 0x1.886e6037841edp-1, 0x1.767dcf5534862p-1};
-    private static final double[] LC = {-0x1.57bf7808caadep-2, -0x1.2bef0a7c06ddbp-2, -0x1.01eae7f513a67p-2, -0x1.b31d8a68224e9p-3, -0x1.6574f0ac07758p-3, -0x1.1aa2bc79c81p-3, -0x1.a4e76ce8c0e5ep-4, -0x1.1973c5a611cccp-4, -0x1.252f438e10c1ep-5, 0.0, 0x1.aa5aa5df25984p-5, 0x1.c5e53aa362eb4p-4, 0x1.526e57720db08p-3, 0x1.bc2860d22477p-3, 0x1.1058bc8a07ee1p-2, 0x1.4043057b6ee09p-2};
-    private static final double LN2 = 0x1.62e42fefa39efp-1;
-    private static final double P0 = -0x1.00ea348b88334p-2, P1 = 0x1.5575b0be00b6ap-2, P2 = -0x1.ffffef20a4123p-2;
-    private static final double[] WI = {0x1.661ec79f8f3bep0, 0x1.571ed4aaf883dp0, 0x1.49539f0f010bp0, 0x1.3c995b0b80385p0, 0x1.30d190c8864a5p0, 0x1.25e227b0b8eap0, 0x1.1bb4a4a1a343fp0, 0x1.12358f08ae5bap0, 0x1.0953f419900a7p0, 0x1p0, 0x1.e608cfd9a47acp-1, 0x1.ca4b31f026aap-1, 0x1.b2036576afce6p-1, 0x1.9c2d163a1aa2dp-1, 0x1.886e6037841edp-1, 0x1.767dcf5534862p-1};
-    private static final double[] WC = {-0x1.efec65b963019p-2, -0x1.b0b6832d4fca4p-2, -0x1.7418b0a1fb77bp-2, -0x1.39de91a6dcf7bp-2, -0x1.01d9bf3f2b631p-2, -0x1.97c1d1b3b7afp-3, -0x1.2f9e393af3c9fp-3, -0x1.960cbbf788d5cp-4, -0x1.a6f9db6475fcep-5, 0.0, 0x1.338ca9f24f53dp-4, 0x1.476a9543891bap-3, 0x1.e840b4ac4e4d2p-3, 0x1.40645f0c6651cp-2, 0x1.88e9c2c1b9ff8p-2, 0x1.ce0a44eb17bccp-2};
-    private static final double Q0 = 0x1.27616c9496e0bp-2, Q1 = -0x1.71969a075c67ap-2, Q2 = 0x1.ec70a6ca7baddp-2, Q3 = -0x1.7154748bef6c8p-1, Q4 = 0x1.71547652ab82bp0;
-    private static final double X0 = 0x1.c6af84b912394p-5, X1 = 0x1.ebfce50fac4f3p-3, X2 = 0x1.62e42ff0c52d6p-1;
-    private static final double HPI = 0x1.921fb54442d18p0, HINV = 0x1.45f306dc9c883p23, P63 = 0x1.921fb54442d18p-62, PD = 3.141592653589793;
-    private static final double S1 = -0x1.555545995a603p-3, S2 = 0x1.1107605230bc4p-7, S3 = -0x1.994eb3774cf24p-13;
-    private static final double C1 = -0x1.ffffffd0c621cp-2, C2 = 0x1.55553e1068f19p-5, C3 = -0x1.6c087e89a359dp-10, C4 = 0x1.99343027bf8c3p-16;
-    private static final double[] SG = {1, -1, -1, 1};
-    private static final int[] I4 = {0xa2, 0xa2f9, 0xa2f983, 0xa2f9836e, 0xf9836e4e, 0x836e4e44, 0x6e4e4415, 0x4e441529, 0x441529fc, 0x1529fc27, 0x29fc2757, 0xfc2757d1, 0x2757d1f5, 0x57d1f534, 0xd1f534dd, 0xf534ddc0, 0x34ddc0db, 0xddc0db62, 0xc0db6295, 0xdb629599, 0x6295993c, 0x95993c43, 0x993c4390, 0x3c439041};
-    private static final double V1 = 0x1.ffffffeba5b28p-1, V3 = -0x1.555533fc6088fp-2, V5 = 0x1.9990825220db1p-3, V7 = -0x1.24159a96a47e3p-3, V9 = 0x1.c02f81f56a9a9p-4, V11 = -0x1.57228506134f6p-4, V13 = 0x1.d77781b4ac82ap-5, V15 = -0x1.f8b3d882abef5p-6, V17 = 0x1.5f80210256598p-7, V19 = -0x1.cbc8426f116f2p-10;
-    private static final double T1 = 0x1.ffffff7fd46f8p-1, T3 = -0x1.5554e9f529b84p-2, T5 = 0x1.11021ccbd40b4p-3, T7 = -0x1.b87e8fcd8f97p-5, T9 = 0x1.5b172ff1b06b1p-6, T11 = -0x1.ec7d924988074p-8, T13 = 0x1.05a0f76ea6863p-9, T15 = -0x1.1ee8787dc4937p-12;
-    private static final double HPIL = 0x1.1a62633145c07p-54;
-    private static final double A0 = 0x1.5555555555555p-3, A1 = -0x1.4d61203eb6f7dp-2, A2 = 0x1.9c1550e884455p-3, A3 = -0x1.48228b5688f3bp-5, A4 = 0x1.9efe07501b288p-11, A5 = 0x1.23de10dfdf709p-15;
-    private static final double R1 = -0x1.33a271c8a2d4bp1, R2 = 0x1.02ae59c598ac8p1, R3 = -0x1.6066c1b8d0159p-1, R4 = 0x1.3b8c5b12e9282p-4;
+    static final long[] ET = {0x3ff0000000000000L, 0x3fefd9b0d3158574L, 0x3fefb5586cf9890fL, 0x3fef9301d0125b51L, 0x3fef72b83c7d517bL, 0x3fef54873168b9aaL, 0x3fef387a6e756238L, 0x3fef1e9df51fdee1L, 0x3fef06fe0a31b715L, 0x3feef1a7373aa9cbL, 0x3feedea64c123422L, 0x3feece086061892dL, 0x3feebfdad5362a27L, 0x3feeb42b569d4f82L, 0x3feeab07dd485429L, 0x3feea47eb03a5585L, 0x3feea09e667f3bcdL, 0x3fee9f75e8ec5f74L, 0x3feea11473eb0187L, 0x3feea589994cce13L, 0x3feeace5422aa0dbL, 0x3feeb737b0cdc5e5L, 0x3feec49182a3f090L, 0x3feed503b23e255dL, 0x3feee89f995ad3adL, 0x3feeff76f2fb5e47L, 0x3fef199bdd85529cL, 0x3fef3720dcef9069L, 0x3fef5818dcfba487L, 0x3fef7c97337b9b5fL, 0x3fefa4afa2a490daL, 0x3fefd0765b6e4540L};
+    static final double ILN2 = 0x1.71547652b82fep5, MS = 0x1.8p52;
+    static final double E0 = 0x1.c6af84b912394p-20, E1 = 0x1.ebfce50fac4f3p-13, E2 = 0x1.62e42ff0c52d6p-6;
+    static final double[] IC = {0x1.661ec79f8f3bep0, 0x1.571ed4aaf883dp0, 0x1.49539f0f010bp0, 0x1.3c995b0b80385p0, 0x1.30d190c8864a5p0, 0x1.25e227b0b8eap0, 0x1.1bb4a4a1a343fp0, 0x1.12358f08ae5bap0, 0x1.0953f419900a7p0, 0x1p0, 0x1.e608cfd9a47acp-1, 0x1.ca4b31f026aap-1, 0x1.b2036576afce6p-1, 0x1.9c2d163a1aa2dp-1, 0x1.886e6037841edp-1, 0x1.767dcf5534862p-1};
+    static final double[] LC = {-0x1.57bf7808caadep-2, -0x1.2bef0a7c06ddbp-2, -0x1.01eae7f513a67p-2, -0x1.b31d8a68224e9p-3, -0x1.6574f0ac07758p-3, -0x1.1aa2bc79c81p-3, -0x1.a4e76ce8c0e5ep-4, -0x1.1973c5a611cccp-4, -0x1.252f438e10c1ep-5, 0.0, 0x1.aa5aa5df25984p-5, 0x1.c5e53aa362eb4p-4, 0x1.526e57720db08p-3, 0x1.bc2860d22477p-3, 0x1.1058bc8a07ee1p-2, 0x1.4043057b6ee09p-2};
+    static final double LN2 = 0x1.62e42fefa39efp-1;
+    static final double P0 = -0x1.00ea348b88334p-2, P1 = 0x1.5575b0be00b6ap-2, P2 = -0x1.ffffef20a4123p-2;
+    static final double[] WI = {0x1.661ec79f8f3bep0, 0x1.571ed4aaf883dp0, 0x1.49539f0f010bp0, 0x1.3c995b0b80385p0, 0x1.30d190c8864a5p0, 0x1.25e227b0b8eap0, 0x1.1bb4a4a1a343fp0, 0x1.12358f08ae5bap0, 0x1.0953f419900a7p0, 0x1p0, 0x1.e608cfd9a47acp-1, 0x1.ca4b31f026aap-1, 0x1.b2036576afce6p-1, 0x1.9c2d163a1aa2dp-1, 0x1.886e6037841edp-1, 0x1.767dcf5534862p-1};
+    static final double[] WC = {-0x1.efec65b963019p-2, -0x1.b0b6832d4fca4p-2, -0x1.7418b0a1fb77bp-2, -0x1.39de91a6dcf7bp-2, -0x1.01d9bf3f2b631p-2, -0x1.97c1d1b3b7afp-3, -0x1.2f9e393af3c9fp-3, -0x1.960cbbf788d5cp-4, -0x1.a6f9db6475fcep-5, 0.0, 0x1.338ca9f24f53dp-4, 0x1.476a9543891bap-3, 0x1.e840b4ac4e4d2p-3, 0x1.40645f0c6651cp-2, 0x1.88e9c2c1b9ff8p-2, 0x1.ce0a44eb17bccp-2};
+    static final double Q0 = 0x1.27616c9496e0bp-2, Q1 = -0x1.71969a075c67ap-2, Q2 = 0x1.ec70a6ca7baddp-2, Q3 = -0x1.7154748bef6c8p-1, Q4 = 0x1.71547652ab82bp0;
+    static final double X0 = 0x1.c6af84b912394p-5, X1 = 0x1.ebfce50fac4f3p-3, X2 = 0x1.62e42ff0c52d6p-1;
+    static final double HPI = 0x1.921fb54442d18p0, HINV = 0x1.45f306dc9c883p23, P63 = 0x1.921fb54442d18p-62, PD = 3.141592653589793;
+    static final double S1 = -0x1.555545995a603p-3, S2 = 0x1.1107605230bc4p-7, S3 = -0x1.994eb3774cf24p-13;
+    static final double C1 = -0x1.ffffffd0c621cp-2, C2 = 0x1.55553e1068f19p-5, C3 = -0x1.6c087e89a359dp-10, C4 = 0x1.99343027bf8c3p-16;
+    static final double[] SG = {1, -1, -1, 1};
+    static final int[] I4 = {0xa2, 0xa2f9, 0xa2f983, 0xa2f9836e, 0xf9836e4e, 0x836e4e44, 0x6e4e4415, 0x4e441529, 0x441529fc, 0x1529fc27, 0x29fc2757, 0xfc2757d1, 0x2757d1f5, 0x57d1f534, 0xd1f534dd, 0xf534ddc0, 0x34ddc0db, 0xddc0db62, 0xc0db6295, 0xdb629599, 0x6295993c, 0x95993c43, 0x993c4390, 0x3c439041};
+    static final double V1 = 0x1.ffffffeba5b28p-1, V3 = -0x1.555533fc6088fp-2, V5 = 0x1.9990825220db1p-3, V7 = -0x1.24159a96a47e3p-3, V9 = 0x1.c02f81f56a9a9p-4, V11 = -0x1.57228506134f6p-4, V13 = 0x1.d77781b4ac82ap-5, V15 = -0x1.f8b3d882abef5p-6, V17 = 0x1.5f80210256598p-7, V19 = -0x1.cbc8426f116f2p-10;
+    static final double T1 = 0x1.ffffff7fd46f8p-1, T3 = -0x1.5554e9f529b84p-2, T5 = 0x1.11021ccbd40b4p-3, T7 = -0x1.b87e8fcd8f97p-5, T9 = 0x1.5b172ff1b06b1p-6, T11 = -0x1.ec7d924988074p-8, T13 = 0x1.05a0f76ea6863p-9, T15 = -0x1.1ee8787dc4937p-12;
+    static final double HPIL = 0x1.1a62633145c07p-54;
+    static final double A0 = 0x1.5555555555555p-3, A1 = -0x1.4d61203eb6f7dp-2, A2 = 0x1.9c1550e884455p-3, A3 = -0x1.48228b5688f3bp-5, A4 = 0x1.9efe07501b288p-11, A5 = 0x1.23de10dfdf709p-15;
+    static final double R1 = -0x1.33a271c8a2d4bp1, R2 = 0x1.02ae59c598ac8p1, R3 = -0x1.6066c1b8d0159p-1, R4 = 0x1.3b8c5b12e9282p-4;
 
-    private static double expCore(double xd) {
+    static double expCore(double xd) {
         double z = xd * ILN2;
         long ki = Double.doubleToRawLongBits(z + MS);
         double kd = Double.longBitsToDouble(ki) - MS;
@@ -108,11 +108,11 @@ public final class AccurateMath {
         return exp2p(yl, sb);
     }
 
-    private static boolean zinfnan(int i) {
+    static boolean zinfnan(int i) {
         return Integer.compareUnsigned((i << 1) - 1, 0xfeffffff) >= 0;
     }
 
-    private static int ckint(int iy) {
+    static int ckint(int iy) {
         int e = (iy >>> 23) & 0xff;
         if (e < 127) return 0;
         if (e > 150) return 2;
@@ -120,7 +120,7 @@ public final class AccurateMath {
         return ((iy >>> (150 - e)) & 1) != 0 ? 1 : 2;
     }
 
-    private static double log2p(int ix) {
+    static double log2p(int ix) {
         int t = ix - 0x3f330000, i = (t >>> 19) & 15;
         double r = Float.intBitsToFloat(ix - (t & 0xff800000)) * WI[i] - 1.0;
         double y = Q0 * r + Q1, p = Q2 * r + Q3;
@@ -129,7 +129,7 @@ public final class AccurateMath {
         return y * (r2 * r2) + (p * r2 + q);
     }
 
-    private static float exp2p(double xd, int sb) {
+    static float exp2p(double xd, int sb) {
         long ki = Double.doubleToRawLongBits(xd + 0x1.8p47);
         double kd = Double.longBitsToDouble(ki) - 0x1.8p47;
         double r = xd - kd, r2 = r * r;
@@ -138,18 +138,18 @@ public final class AccurateMath {
         return (float) (y * s);
     }
 
-    private static double sinp(double x, double x2) {
+    static double sinp(double x, double x2) {
         double x3 = x * x2;
         return x + x3 * S1 + x3 * x2 * (S2 + x2 * S3);
     }
 
-    private static double cosp(double x2, boolean neg) {
+    static double cosp(double x2, boolean neg) {
         double c = 1.0 + x2 * C1 + (x2 * x2) * C2;
         c += (x2 * x2 * x2) * (C3 + x2 * C4);
         return neg ? -c : c;
     }
 
-    private static double rlarge(int xi, int[] q) {
+    static double rlarge(int xi, int[] q) {
         int i = (xi >>> 26) & 15, sh = (xi >>> 23) & 7;
         xi = ((xi & 0xffffff) | 0x800000) << sh;
         long m = xi & 0xffffffffL;
@@ -228,7 +228,7 @@ public final class AccurateMath {
         }
     }
 
-    private static double asinCore(double z) {
+    static double asinCore(double z) {
         double p = (((((A5 * z + A4) * z + A3) * z + A2) * z + A1) * z + A0);
         double q = ((((R4 * z + R3) * z + R2) * z + R1) * z + 1.0);
         return z * p / q;
@@ -275,7 +275,7 @@ public final class AccurateMath {
         return (float) r;
     }
 
-    private static double atpoly(double x2) {
+    static double atpoly(double x2) {
         double u0 = V1 + x2 * V3, u1 = V5 + x2 * V7, u2 = V9 + x2 * V11, u3 = V13 + x2 * V15, u4 = V17 + x2 * V19;
         double x4 = x2 * x2, x8 = x4 * x4;
         return (u0 + x4 * u1) + x8 * ((u2 + x4 * u3) + x8 * u4);
@@ -302,7 +302,7 @@ public final class AccurateMath {
         return (float) (iy < 0 ? -res : res);
     }
 
-    private static float atn2sp(float y, float x, int ix, int iy) {
+    static float atn2sp(float y, float x, int ix, int iy) {
         if (Float.isNaN(x) || Float.isNaN(y)) return Float.NaN;
         boolean ys = iy < 0;
         if ((iy & 0x7fffffff) == 0x7f800000) {
@@ -321,7 +321,7 @@ public final class AccurateMath {
         return (float) (ys ? -res : res);
     }
 
-    private static double thpoly(double x2) {
+    static double thpoly(double x2) {
         double u0 = T1 + x2 * T3, u1 = T5 + x2 * T7, u2 = T9 + x2 * T11, u3 = T13 + x2 * T15;
         double x4 = x2 * x2, x8 = x4 * x4;
         return (u0 + x4 * u1) + x8 * (u2 + x4 * u3);

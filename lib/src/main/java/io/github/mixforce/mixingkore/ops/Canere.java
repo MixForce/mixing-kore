@@ -1,6 +1,6 @@
-// <editor-fold defaultstate="collapsed" desc="// SPDX: LGPL-3.0-or-later | Copyright (C) 2026 MixForce">
+// <editor-fold defaultstate="collapsed" desc="// SPDX: LGPL-3.0-or-later | Copyright (c) 2026 MixForce">
 /* SPDX-License-Identifier: LGPL-3.0-or-later */
-/* Copyright (C) 2026 MixForce */
+/* Copyright (c) 2026 MixForce */
 // </editor-fold>
 package io.github.mixforce.mixingkore.ops;
 
@@ -1503,7 +1503,7 @@ public final class Canere {
         /** Degraded Pillar */
         static final class Lock {
             final int[] ev; final long w0, w1;
-            private Lock(int[] ev, long w0, long w1) { this.ev = ev; this.w0 = w0; this.w1 = w1; }
+            Lock(int[] ev, long w0, long w1) { this.ev = ev; this.w0 = w0; this.w1 = w1; }
             static Lock of(Pool pool, int t, int[] mats) {
                 Lexicon lex = pool.lex();
                 int ty = pool.type(t);

@@ -6,6 +6,7 @@ _Performance algorithm library for Minecraft mods._
 
 - _AccurateMath_, _FastMath_, _RoughMath_ · Approx. math
 - _BitVec_ · Bit packing and bitwise operations.
+- _Nyan384_ · Stat. RNG
 - _Arcanum_ · Stronghold ray dynalocation.
 - _Canere_ · Hybrid heuristic anvil solver.
 - _FastLoc_ · Performance `Vec3` / `BlockPos` alternatives.
@@ -16,7 +17,7 @@ _Performance algorithm library for Minecraft mods._
 
 ```groovy
  dependencies {
-     implementation "io.github.mixforce:mixing-kore:1.0.4"
+     implementation "io.github.mixforce:mixing-kore:1.0.5"
  }
 ```
 

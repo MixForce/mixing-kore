@@ -1,3 +1,5 @@
+approx. math
+
 Benchmark        Mode  Cnt     Score    Error  Units
 
 C2 Hotspot JDK 25

@@ -19,8 +19,8 @@ repositories {
 
 dependencies {
     minecraft(libs.minecraft)
-    implementation(libs.fabric.loader)
-    implementation(libs.fabric.api)
+    compileOnly(libs.fabric.loader)
+    compileOnly(libs.fabric.api)
     jmh(libs.bundles.jmh)
 }
 
