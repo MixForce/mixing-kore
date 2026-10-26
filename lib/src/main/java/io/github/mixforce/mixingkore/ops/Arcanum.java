@@ -1,6 +1,6 @@
-// <editor-fold defaultstate="collapsed" desc="// SPDX: LGPL-3.0-or-later | Copyright (c) 2026 MixForce">
+// <editor-fold defaultstate="collapsed" desc="// LGPL-3.0-or-later | SPDX-FileCopyrightText: 2026 MixForce">
 /* SPDX-License-Identifier: LGPL-3.0-or-later */
-/* Copyright (c) 2026 MixForce */
+/* SPDX-FileCopyrightText: 2026 MixForce */
 // </editor-fold>
 package io.github.mixforce.mixingkore.ops;
 
@@ -29,7 +29,7 @@ public final class Arcanum {
     public static final class Tracer {
         public Tracer() { this(new Config()); }
         public Tracer(Config config) { this(Locus.Rings.vanilla(), config); }
-        Tracer(Locus.Rings rsv, Config cfg) { this.rsv = rsv; this.cfg = cfg; hi.defaultReturnValue(-1); }
+        public Tracer(Locus.Rings rsv, Config config) { this.rsv = rsv; this.cfg = config; hi.defaultReturnValue(-1); }
 
         public static final class Config {
             public float clusRad = 16;
@@ -242,7 +242,7 @@ public final class Arcanum {
             return bi;
         }
 
-        static final class Rings {
+        public static final class Rings {
             static final int BS = 10;
             final int half, bw;
             final int[] cnt, be, od;

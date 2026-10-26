@@ -1,6 +1,6 @@
-// <editor-fold defaultstate="collapsed" desc="// SPDX: LGPL-3.0-or-later | Copyright (c) 2026 MixForce">
+// <editor-fold defaultstate="collapsed" desc="// LGPL-3.0-or-later | SPDX-FileCopyrightText: 2026 MixForce">
 /* SPDX-License-Identifier: LGPL-3.0-or-later */
-/* Copyright (c) 2026 MixForce */
+/* SPDX-FileCopyrightText: 2026 MixForce */
 // </editor-fold>
 package io.github.mixforce.mixingkore.ops;
 
@@ -210,7 +210,7 @@ public final class Canere {
         });
 
         /** Config */
-        public record Policy(int limit) {
+        public static record Policy(int limit) {
             public Policy { if (limit < 1) throw new IllegalArgumentException("limit not valid"); }
             public static final Policy VANILLA = new Policy(40);
             public static final Policy UNLIMITED = new Policy(5000);

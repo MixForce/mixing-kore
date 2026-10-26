@@ -1,6 +1,6 @@
-// <editor-fold defaultstate="collapsed" desc="// SPDX: LGPL-3.0-or-later | Copyright (c) 2026 MixForce">
+// <editor-fold defaultstate="collapsed" desc="// LGPL-3.0-or-later | SPDX-FileCopyrightText: 2026 MixForce">
 /* SPDX-License-Identifier: LGPL-3.0-or-later */
-/* Copyright (c) 2026 MixForce */
+/* SPDX-FileCopyrightText: 2026 MixForce */
 // </editor-fold>
 package io.github.mixforce.mixingkore.mathx;
 
@@ -316,7 +316,7 @@ public final class BitVec {
 
     private static final class Simd {
         private Simd() {}
-        private static final VectorSpecies<Long> L = LongVector.SPECIES_PREFERRED;
+        static final VectorSpecies<Long> L = LongVector.SPECIES_PREFERRED;
         static int pop(long[] a, int n) {
             LongVector acc = LongVector.zero(L);
             int i = 0;

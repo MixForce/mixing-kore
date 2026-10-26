@@ -1,5 +1,5 @@
 [versions]
-mod-version = "1.0.5"
+mod-version = "1.0.6"
 jmhPlugin = "0.7.3"
 jmh = "1.37"
 vanniktech-publish = "0.37.0"

@@ -4,7 +4,7 @@ plugins {
 }
 
 base {
-    archivesName = "MixingKore-Testmod"
+    archivesName = "mixingKore-testmod"
 }
 
 version = libs.versions.mod.version.get()

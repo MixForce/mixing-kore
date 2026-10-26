@@ -11,8 +11,9 @@ classes/
 *.launch
 
 # idea
-
-.idea/
+.idea/*
+!.idea/markdown.xml
+!.idea/workspace.xml
 *.iml
 *.ipr
 *.iws

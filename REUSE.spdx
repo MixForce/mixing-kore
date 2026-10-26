@@ -1,0 +1,273 @@
+SPDXVersion: SPDX-2.1
+DataLicense: CC0-1.0
+SPDXID: SPDXRef-DOCUMENT
+DocumentName: mixing-kore
+DocumentNamespace: http://spdx.org/spdxdocs/spdx-v2.1-b9fc3a8a-b1cf-41e1-a9b5-6f78b1baa262
+Creator: Person: Anonymous ()
+Creator: Organization: Anonymous ()
+Creator: Tool: reuse-6.2.0
+Created: 2026-10-26T21:34:38Z
+CreatorComment: <text>This document was created automatically using available reuse information consistent with REUSE.</text>
+Relationship: SPDXRef-DOCUMENT DESCRIBES SPDXRef-96e72dde9733290bc9822fa709cb430d
+Relationship: SPDXRef-DOCUMENT DESCRIBES SPDXRef-3d1c77a30f658906473595370f5ef040
+Relationship: SPDXRef-DOCUMENT DESCRIBES SPDXRef-27b9042ee62bd5f0b6b087276d278832
+Relationship: SPDXRef-DOCUMENT DESCRIBES SPDXRef-f0757fff9ecdb1f08bbd5ac64a133590
+Relationship: SPDXRef-DOCUMENT DESCRIBES SPDXRef-b6cf455f6160c08764710de4dba14d42
+Relationship: SPDXRef-DOCUMENT DESCRIBES SPDXRef-4e675be0c498b7a8d7c0054be673c7d7
+Relationship: SPDXRef-DOCUMENT DESCRIBES SPDXRef-b3bad93f502d7414c16ded5da52b97ed
+Relationship: SPDXRef-DOCUMENT DESCRIBES SPDXRef-822b7032460066a2c17b7e2127fb1f49
+Relationship: SPDXRef-DOCUMENT DESCRIBES SPDXRef-721265b065ddcefc59a3350dafe2231d
+Relationship: SPDXRef-DOCUMENT DESCRIBES SPDXRef-9190eb06d47bd1d931f2bfc7b271e7c2
+Relationship: SPDXRef-DOCUMENT DESCRIBES SPDXRef-c9f3a828ec60e721b341b99191fa8e49
+Relationship: SPDXRef-DOCUMENT DESCRIBES SPDXRef-ce67252f296a463ba7795d256527ba96
+Relationship: SPDXRef-DOCUMENT DESCRIBES SPDXRef-d67fa327af34047e8c208c821128881b
+Relationship: SPDXRef-DOCUMENT DESCRIBES SPDXRef-760d2f50b4df1277ea1480578287c559
+Relationship: SPDXRef-DOCUMENT DESCRIBES SPDXRef-851a16ed346228c9aa8d5c56106fee50
+Relationship: SPDXRef-DOCUMENT DESCRIBES SPDXRef-a9465f7e6bdd0a547672650fa73f3ed0
+Relationship: SPDXRef-DOCUMENT DESCRIBES SPDXRef-32d9cb7edabe996e230bc9ffac46d168
+Relationship: SPDXRef-DOCUMENT DESCRIBES SPDXRef-0e5d00c04d9c75cefa5ac1efc8e3c27f
+Relationship: SPDXRef-DOCUMENT DESCRIBES SPDXRef-0c12b1db9458eb3638abcc1dd6eedef6
+Relationship: SPDXRef-DOCUMENT DESCRIBES SPDXRef-c9577397037703f5b72d63cefff6d712
+Relationship: SPDXRef-DOCUMENT DESCRIBES SPDXRef-8b4e97f7d03b42281bb0efb005b5cea7
+Relationship: SPDXRef-DOCUMENT DESCRIBES SPDXRef-d5007437347a39712fd021edf18db473
+Relationship: SPDXRef-DOCUMENT DESCRIBES SPDXRef-e979daad4938e111f3cb63892842d84e
+Relationship: SPDXRef-DOCUMENT DESCRIBES SPDXRef-1e35d7aa6340716e096f015cd3b313d2
+Relationship: SPDXRef-DOCUMENT DESCRIBES SPDXRef-4f292dae4f62251ddbc266a900f20214
+Relationship: SPDXRef-DOCUMENT DESCRIBES SPDXRef-fee42c4be33badfe123602db93edc754
+Relationship: SPDXRef-DOCUMENT DESCRIBES SPDXRef-6c33185f0316a36580a7f5d2fd14f2ab
+Relationship: SPDXRef-DOCUMENT DESCRIBES SPDXRef-10586fc6e82eb1684806422befd22fba
+Relationship: SPDXRef-DOCUMENT DESCRIBES SPDXRef-b8d60c86b874235075eb9c22654b190f
+Relationship: SPDXRef-DOCUMENT DESCRIBES SPDXRef-47d90206c6bf52dd16107f87e1352f83
+Relationship: SPDXRef-DOCUMENT DESCRIBES SPDXRef-4390bf958bf4aa20539faaff5e8164af
+
+FileName: ./.gitattributes
+SPDXID: SPDXRef-96e72dde9733290bc9822fa709cb430d
+FileChecksum: SHA1: ea2e55fb76dad75b1613484ba2bbd7f96c93cc84
+LicenseConcluded: NOASSERTION
+LicenseInfoInFile: LGPL-3.0-or-later
+FileCopyrightText: <text>SPDX-FileCopyrightText: 2026 MixForce</text>
+
+FileName: ./.github\README.md
+SPDXID: SPDXRef-3d1c77a30f658906473595370f5ef040
+FileChecksum: SHA1: 9dcf485fd8f62614cad60024546a8b5c2d0b0401
+LicenseConcluded: NOASSERTION
+LicenseInfoInFile: LGPL-3.0-or-later
+FileCopyrightText: <text>SPDX-FileCopyrightText: 2026 MixForce</text>
+
+FileName: ./.gitignore
+SPDXID: SPDXRef-27b9042ee62bd5f0b6b087276d278832
+FileChecksum: SHA1: e4d092b89756856c6e2fd7d436eda747051585de
+LicenseConcluded: NOASSERTION
+LicenseInfoInFile: LGPL-3.0-or-later
+FileCopyrightText: <text>SPDX-FileCopyrightText: 2026 MixForce</text>
+
+FileName: ./.idea\markdown.xml
+SPDXID: SPDXRef-f0757fff9ecdb1f08bbd5ac64a133590
+FileChecksum: SHA1: 9891df2a9553c5de9c5dd2f7aa348c290dc3d86f
+LicenseConcluded: NOASSERTION
+LicenseInfoInFile: LGPL-3.0-or-later
+FileCopyrightText: <text>SPDX-FileCopyrightText: 2026 MixForce</text>
+
+FileName: ./.idea\workspace.xml
+SPDXID: SPDXRef-b6cf455f6160c08764710de4dba14d42
+FileChecksum: SHA1: 657e0a95463fb84488b54781960485ebf7e51f24
+LicenseConcluded: NOASSERTION
+LicenseInfoInFile: LGPL-3.0-or-later
+FileCopyrightText: <text>SPDX-FileCopyrightText: 2026 MixForce</text>
+
+FileName: ./NOTICE
+SPDXID: SPDXRef-4e675be0c498b7a8d7c0054be673c7d7
+FileChecksum: SHA1: 3fcf25518b01649a466f5f1ec8fe332bd6c1b0d5
+LicenseConcluded: NOASSERTION
+LicenseInfoInFile: LGPL-3.0-or-later
+FileCopyrightText: <text>Copyright (C) 1999-2026 Arm Limited.
+SPDX-FileCopyrightText: 2026 MixForce</text>
+
+FileName: ./README.md
+SPDXID: SPDXRef-b3bad93f502d7414c16ded5da52b97ed
+FileChecksum: SHA1: dfea69626dc980804730da1fb33926d345128d36
+LicenseConcluded: NOASSERTION
+LicenseInfoInFile: LGPL-3.0-or-later
+FileCopyrightText: <text>SPDX-FileCopyrightText: 2026 MixForce</text>
+
+FileName: ./REPORT
+SPDXID: SPDXRef-822b7032460066a2c17b7e2127fb1f49
+FileChecksum: SHA1: 3dcdff673a5e3b691255d8aa9b1bff7106511d11
+LicenseConcluded: NOASSERTION
+LicenseInfoInFile: LGPL-3.0-or-later
+FileCopyrightText: <text>SPDX-FileCopyrightText: 2026 MixForce</text>
+
+FileName: ./gradle.properties
+SPDXID: SPDXRef-721265b065ddcefc59a3350dafe2231d
+FileChecksum: SHA1: 77a583c53f4e6081c6e13a84b3ee611d1a3f9dac
+LicenseConcluded: NOASSERTION
+LicenseInfoInFile: LGPL-3.0-or-later
+FileCopyrightText: <text>SPDX-FileCopyrightText: 2026 MixForce</text>
+
+FileName: ./gradle\libs.versions.toml
+SPDXID: SPDXRef-9190eb06d47bd1d931f2bfc7b271e7c2
+FileChecksum: SHA1: 1614be656d4c111e5f848f9bf600e1ae3da1a291
+LicenseConcluded: NOASSERTION
+LicenseInfoInFile: LGPL-3.0-or-later
+FileCopyrightText: <text>SPDX-FileCopyrightText: 2026 MixForce</text>
+
+FileName: ./gradle\wrapper\gradle-wrapper.jar
+SPDXID: SPDXRef-c9f3a828ec60e721b341b99191fa8e49
+FileChecksum: SHA1: 5fb21a795db76a01b4ab4acb25132f8beee3138d
+LicenseConcluded: NOASSERTION
+LicenseInfoInFile: Apache-2.0
+FileCopyrightText: <text>SPDX-FileCopyrightText: Gradle, Inc.</text>
+
+FileName: ./gradle\wrapper\gradle-wrapper.properties
+SPDXID: SPDXRef-ce67252f296a463ba7795d256527ba96
+FileChecksum: SHA1: 74f87d2d730fc2cdbb6b9a2f6d9610afe0d561d3
+LicenseConcluded: NOASSERTION
+LicenseInfoInFile: LGPL-3.0-or-later
+FileCopyrightText: <text>SPDX-FileCopyrightText: 2026 MixForce</text>
+
+FileName: ./gradlew
+SPDXID: SPDXRef-d67fa327af34047e8c208c821128881b
+FileChecksum: SHA1: ee14b689c506a07b5d76b5c24d1858ec030e6a91
+LicenseConcluded: NOASSERTION
+LicenseInfoInFile: Apache-2.0
+FileCopyrightText: <text>Copyright © 2015 the original authors.</text>
+
+FileName: ./gradlew.bat
+SPDXID: SPDXRef-760d2f50b4df1277ea1480578287c559
+FileChecksum: SHA1: 483bdee17a45112d5b6521203afbf43073a8d4f6
+LicenseConcluded: NOASSERTION
+LicenseInfoInFile: Apache-2.0
+FileCopyrightText: <text>Copyright 2015 the original author or authors.</text>
+
+FileName: ./lib\build.gradle.kts
+SPDXID: SPDXRef-851a16ed346228c9aa8d5c56106fee50
+FileChecksum: SHA1: 40b96b610dd698abdac26d13052a11fbcde3d0a5
+LicenseConcluded: NOASSERTION
+LicenseInfoInFile: LGPL-3.0-or-later
+FileCopyrightText: <text>SPDX-FileCopyrightText: 2026 MixForce</text>
+
+FileName: ./lib\src\jmh\java\io\github\mixforce\mixingkore\mathx\Harness.java
+SPDXID: SPDXRef-a9465f7e6bdd0a547672650fa73f3ed0
+FileChecksum: SHA1: 237dd49c508c9a6077393575db99902ac28806a6
+LicenseConcluded: NOASSERTION
+LicenseInfoInFile: LGPL-3.0-or-later
+FileCopyrightText: <text>SPDX-FileCopyrightText: 2026 MixForce</text>
+
+FileName: ./lib\src\jmh\java\io\github\mixforce\mixingkore\mathx\MathA.java
+SPDXID: SPDXRef-32d9cb7edabe996e230bc9ffac46d168
+FileChecksum: SHA1: b5af55a8fd998a4037d836e9b682bd1dae18a523
+LicenseConcluded: NOASSERTION
+LicenseInfoInFile: LGPL-3.0-or-later
+FileCopyrightText: <text>SPDX-FileCopyrightText: 2026 MixForce</text>
+
+FileName: ./lib\src\main\java\io\github\mixforce\mixingkore\internal\Platform.java
+SPDXID: SPDXRef-0e5d00c04d9c75cefa5ac1efc8e3c27f
+FileChecksum: SHA1: 2db340eed65bb99401408dd3f798798a00f8ef5f
+LicenseConcluded: NOASSERTION
+LicenseInfoInFile: LGPL-3.0-or-later
+FileCopyrightText: <text>SPDX-FileCopyrightText: 2026 MixForce</text>
+
+FileName: ./lib\src\main\java\io\github\mixforce\mixingkore\mathx\AccurateMath.java
+SPDXID: SPDXRef-0c12b1db9458eb3638abcc1dd6eedef6
+FileChecksum: SHA1: f37239743b8dd576f8e0f95c87696ffab9ce01c0
+LicenseConcluded: NOASSERTION
+LicenseInfoInFile: Apache-2.0
+LicenseInfoInFile: LGPL-3.0-or-later
+LicenseInfoInFile: LLVM-exception
+FileCopyrightText: <text>SPDX-FileCopyrightText: 1999-2026 Arm Limited
+SPDX-FileCopyrightText: 1999-2026, 2026 Arm Limited MixForce
+SPDX-FileCopyrightText: 2026 MixForce</text>
+
+FileName: ./lib\src\main\java\io\github\mixforce\mixingkore\mathx\BitVec.java
+SPDXID: SPDXRef-c9577397037703f5b72d63cefff6d712
+FileChecksum: SHA1: d6399c1c1827d95af2141481d7118afb70f51e34
+LicenseConcluded: NOASSERTION
+LicenseInfoInFile: LGPL-3.0-or-later
+FileCopyrightText: <text>SPDX-FileCopyrightText: 2026 MixForce</text>
+
+FileName: ./lib\src\main\java\io\github\mixforce\mixingkore\mathx\FastMath.java
+SPDXID: SPDXRef-8b4e97f7d03b42281bb0efb005b5cea7
+FileChecksum: SHA1: f2bdfcb6bde6ba1391296be37cf983134192be02
+LicenseConcluded: NOASSERTION
+LicenseInfoInFile: LGPL-3.0-or-later
+FileCopyrightText: <text>SPDX-FileCopyrightText: 2026 MixForce</text>
+
+FileName: ./lib\src\main\java\io\github\mixforce\mixingkore\mathx\Nyan384.java
+SPDXID: SPDXRef-d5007437347a39712fd021edf18db473
+FileChecksum: SHA1: 650e9fe9b5189573e1ec85f9b2fc0480af1e63c3
+LicenseConcluded: NOASSERTION
+LicenseInfoInFile: LGPL-3.0-or-later
+FileCopyrightText: <text>SPDX-FileCopyrightText: 2026 MixForce</text>
+
+FileName: ./lib\src\main\java\io\github\mixforce\mixingkore\mathx\RoughMath.java
+SPDXID: SPDXRef-e979daad4938e111f3cb63892842d84e
+FileChecksum: SHA1: b4a86aaded8c7cc50653a439b836d918bea1741b
+LicenseConcluded: NOASSERTION
+LicenseInfoInFile: LGPL-3.0-or-later
+FileCopyrightText: <text>SPDX-FileCopyrightText: 2026 MixForce</text>
+
+FileName: ./lib\src\main\java\io\github\mixforce\mixingkore\ops\Arcanum.java
+SPDXID: SPDXRef-1e35d7aa6340716e096f015cd3b313d2
+FileChecksum: SHA1: 9aa9751f597cbdcd6a3e47cc86f76b972e4caf97
+LicenseConcluded: NOASSERTION
+LicenseInfoInFile: LGPL-3.0-or-later
+FileCopyrightText: <text>SPDX-FileCopyrightText: 2026 MixForce</text>
+
+FileName: ./lib\src\main\java\io\github\mixforce\mixingkore\ops\Canere.java
+SPDXID: SPDXRef-4f292dae4f62251ddbc266a900f20214
+FileChecksum: SHA1: 45afd69c29751a238bce4928e5ffe8430e9e361b
+LicenseConcluded: NOASSERTION
+LicenseInfoInFile: LGPL-3.0-or-later
+FileCopyrightText: <text>SPDX-FileCopyrightText: 2026 MixForce</text>
+
+FileName: ./lib\src\main\java\io\github\mixforce\mixingkore\ops\FastLoc.java
+SPDXID: SPDXRef-fee42c4be33badfe123602db93edc754
+FileChecksum: SHA1: 9515a0cfd00c6845f69e30d3afdfc7a0b7b8f4e2
+LicenseConcluded: NOASSERTION
+LicenseInfoInFile: LGPL-3.0-or-later
+FileCopyrightText: <text>SPDX-FileCopyrightText: 2026 MixForce</text>
+
+FileName: ./lib\src\main\resources\assets\mixing-kore\icon.png
+SPDXID: SPDXRef-6c33185f0316a36580a7f5d2fd14f2ab
+FileChecksum: SHA1: d4727e97b6601a6a8ebd3875aac2c4f364982977
+LicenseConcluded: NOASSERTION
+LicenseInfoInFile: LicenseRef-Proprietary
+FileCopyrightText: <text>SPDX-FileCopyrightText: 2026 MixForce</text>
+
+FileName: ./lib\src\main\resources\fabric.mod.json
+SPDXID: SPDXRef-10586fc6e82eb1684806422befd22fba
+FileChecksum: SHA1: a6d5646e9561fb555238a282df00850390d0d822
+LicenseConcluded: NOASSERTION
+LicenseInfoInFile: LGPL-3.0-or-later
+FileCopyrightText: <text>SPDX-FileCopyrightText: 2026 MixForce</text>
+
+FileName: ./settings.gradle.kts
+SPDXID: SPDXRef-b8d60c86b874235075eb9c22654b190f
+FileChecksum: SHA1: 26f5ee5d944c0c8a97849a38f40bfcbf57608294
+LicenseConcluded: NOASSERTION
+LicenseInfoInFile: LGPL-3.0-or-later
+FileCopyrightText: <text>SPDX-FileCopyrightText: 2026 MixForce</text>
+
+FileName: ./testmod\build.gradle.kts
+SPDXID: SPDXRef-47d90206c6bf52dd16107f87e1352f83
+FileChecksum: SHA1: 4e6018a681493bc8bc418717293b3521567088b7
+LicenseConcluded: NOASSERTION
+LicenseInfoInFile: LGPL-3.0-or-later
+FileCopyrightText: <text>SPDX-FileCopyrightText: 2026 MixForce</text>
+
+FileName: ./testmod\src\main\resources\fabric.mod.json
+SPDXID: SPDXRef-4390bf958bf4aa20539faaff5e8164af
+FileChecksum: SHA1: e1c4aa0193f49ca184eb01649d5c9b8264a510b0
+LicenseConcluded: NOASSERTION
+LicenseInfoInFile: LGPL-3.0-or-later
+FileCopyrightText: <text>SPDX-FileCopyrightText: 2026 MixForce</text>
+
+LicenseID: LicenseRef-Proprietary
+LicenseName: NOASSERTION
+ExtractedText: <text>Proprietary License
+
+Copyright (c) 2026 MixForce. All rights reserved.
+
+This work and associated documentation are proprietary and confidential.
+Unauthorized copying, distribution, modification, or use is strictly prohibited.</text>
+

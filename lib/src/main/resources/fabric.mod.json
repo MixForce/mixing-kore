@@ -3,12 +3,14 @@
   "id": "mixing-kore",
   "version": "${version}",
   "name": "MixingKore",
-  "description": "MixingKore",
+  "description": "Performance algorithm library for Minecraft mods.",
+  "icon": "assets/mixing-kore/icon.png",
+  "contact": { "sources": "https://github.com/MixForce/mixing-kore" },
   "authors": ["MixForce"],
   "license": "LGPL-3.0-or-later",
   "environment": "*",
   "depends": {
-    "fabricloader": ">=0.19.5",
+    "fabricloader": ">=0.20.1",
     "minecraft": "~26.3",
     "java": ">=25"
   }

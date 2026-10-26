@@ -1,0 +1,6 @@
+Proprietary License
+
+Copyright (c) 2026 MixForce. All rights reserved.
+
+This work and associated documentation are proprietary and confidential.
+Unauthorized copying, distribution, modification, or use is strictly prohibited.

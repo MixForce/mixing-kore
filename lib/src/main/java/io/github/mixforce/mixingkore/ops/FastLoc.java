@@ -1,6 +1,6 @@
-// <editor-fold defaultstate="collapsed" desc="// SPDX: LGPL-3.0-or-later | Copyright (c) 2026 MixForce">
+// <editor-fold defaultstate="collapsed" desc="// LGPL-3.0-or-later | SPDX-FileCopyrightText: 2026 MixForce">
 /* SPDX-License-Identifier: LGPL-3.0-or-later */
-/* Copyright (c) 2026 MixForce */
+/* SPDX-FileCopyrightText: 2026 MixForce */
 // </editor-fold>
 package io.github.mixforce.mixingkore.ops;
 
@@ -199,7 +199,7 @@ public final class FastLoc {
             public int binarySearch(long l) { return Arrays.binarySearch(a, 0, size, l); }
             void grow(int cap) { a = Arrays.copyOf(a, cap); }
             public void map(LVMap fn, long[] out) {
-                vg();
+                v();
                 if (out.length < size) throw new IllegalArgumentException("out too small: " + out.length + " < " + size);
                 VectorSpecies<Long> S = LongVector.SPECIES_PREFERRED;
                 int n = size, L = S.length(), i = 0;
@@ -207,21 +207,21 @@ public final class FastLoc {
                 if (i < n) { VectorMask<Long> m = S.indexInRange(i, n); fn.apply(LongVector.fromArray(S, a, i, m)).intoArray(out, i, m); }
             }
             public void fill(LVMap fn) {
-                vg();
+                v();
                 VectorSpecies<Long> S = LongVector.SPECIES_PREFERRED;
                 int n = size, L = S.length(), i = 0;
                 for (; i <= n - L; i += L) fn.apply(LongVector.fromArray(S, a, i)).intoArray(a, i);
                 if (i < n) { VectorMask<Long> m = S.indexInRange(i, n); fn.apply(LongVector.fromArray(S, a, i, m)).intoArray(a, i, m); }
             }
             public int count(LVPred pred) {
-                vg();
+                v();
                 VectorSpecies<Long> S = LongVector.SPECIES_PREFERRED;
                 int c = 0;
                 for (int i = 0; i < size; i += S.length()) { VectorMask<Long> m = S.indexInRange(i, size); c += pred.test(LongVector.fromArray(S, a, i, m)).and(m).trueCount(); }
                 return c;
             }
             public int cull(LVPred pred, int[] out) {
-                vg();
+                v();
                 if (out.length < size) throw new IllegalArgumentException("out too small: " + out.length + " < " + size);
                 VectorSpecies<Long> S = LongVector.SPECIES_PREFERRED;
                 int n = size, c = 0;
@@ -232,7 +232,7 @@ public final class FastLoc {
                 }
                 return c;
             }
-            static void vg() { if (!Platform.VECTOR_OK) throw new IllegalStateException("jdk.incubator.vector absent"); }
+            static void v() { if (!Platform.VECTOR_OK) throw new IllegalStateException("jdk.incubator.vector absent"); }
             @FunctionalInterface
             public interface Op { void apply(Mutable m); }
             @FunctionalInterface
@@ -513,7 +513,7 @@ public final class FastLoc {
             }
             void grow(int c) { xs = Arrays.copyOf(xs, c); ys = Arrays.copyOf(ys, c); zs = Arrays.copyOf(zs, c); }
             public void map(V3Map fn, double[] out) {
-                vg();
+                v();
                 if (out.length < size) throw new IllegalArgumentException("out too small: " + out.length + " < " + size);
                 VectorSpecies<Double> S = DoubleVector.SPECIES_PREFERRED;
                 int n = size, L = S.length(), i = 0;
@@ -525,7 +525,7 @@ public final class FastLoc {
                 }
             }
             public void map(V3Map fx, V3Map fy, V3Map fz, List out) {
-                vg(); out.size(size);
+                v(); out.size(size);
                 VectorSpecies<Double> S = DoubleVector.SPECIES_PREFERRED;
                 int n = size, L = S.length(), i = 0;
                 double[] X = out.xs, Y = out.ys, Z = out.zs;
@@ -541,7 +541,7 @@ public final class FastLoc {
             }
             public void fill(V3Map fx, V3Map fy, V3Map fz) { map(fx, fy, fz, this); }
             public double sum(V3Map fn) {
-                vg();
+                v();
                 VectorSpecies<Double> S = DoubleVector.SPECIES_PREFERRED;
                 DoubleVector acc = DoubleVector.zero(S);
                 int n = size, L = S.length();
@@ -553,7 +553,7 @@ public final class FastLoc {
                 return acc.reduceLanes(VectorOperators.ADD);
             }
             public double max(V3Map fn) {
-                vg();
+                v();
                 VectorSpecies<Double> S = DoubleVector.SPECIES_PREFERRED;
                 DoubleVector acc = DoubleVector.broadcast(S, Double.NEGATIVE_INFINITY);
                 int n = size, L = S.length();
@@ -565,7 +565,7 @@ public final class FastLoc {
                 return acc.reduceLanes(VectorOperators.MAX);
             }
             public double min(V3Map fn) {
-                vg();
+                v();
                 VectorSpecies<Double> S = DoubleVector.SPECIES_PREFERRED;
                 DoubleVector acc = DoubleVector.broadcast(S, Double.POSITIVE_INFINITY);
                 int n = size, L = S.length();
@@ -577,7 +577,7 @@ public final class FastLoc {
                 return acc.reduceLanes(VectorOperators.MIN);
             }
             public int argMax(V3Map fn) {
-                vg();
+                v();
                 VectorSpecies<Double> S = DoubleVector.SPECIES_PREFERRED;
                 int n = size;
                 if (n == 0) return -1;
@@ -598,7 +598,7 @@ public final class FastLoc {
                 return (int) bi;
             }
             public int argMin(V3Map fn) {
-                vg();
+                v();
                 VectorSpecies<Double> S = DoubleVector.SPECIES_PREFERRED;
                 int n = size;
                 if (n == 0) return -1;
@@ -619,7 +619,7 @@ public final class FastLoc {
                 return (int) bi;
             }
             public int count(V3Pred pred) {
-                vg();
+                v();
                 VectorSpecies<Double> S = DoubleVector.SPECIES_PREFERRED;
                 int c = 0;
                 for (int i = 0; i < size; i += S.length()) {
@@ -629,7 +629,7 @@ public final class FastLoc {
                 return c;
             }
             public int cull(V3Pred pred, int[] out) {
-                vg();
+                v();
                 if (out.length < size) throw new IllegalArgumentException("out too small: " + out.length + " < " + size);
                 VectorSpecies<Double> S = DoubleVector.SPECIES_PREFERRED;
                 int n = size, c = 0;
@@ -641,7 +641,7 @@ public final class FastLoc {
                 }
                 return c;
             }
-            static void vg() { if (!Platform.VECTOR_OK) throw new IllegalStateException("jdk.incubator.vector absent"); }
+            static void v() { if (!Platform.VECTOR_OK) throw new IllegalStateException("jdk.incubator.vector absent"); }
             @FunctionalInterface
             public interface Op { void apply(Mutable m); }
             @FunctionalInterface
@@ -942,7 +942,7 @@ public final class FastLoc {
             }
             void grow(int cap) { xs = Arrays.copyOf(xs, cap); ys = Arrays.copyOf(ys, cap); zs = Arrays.copyOf(zs, cap); }
             public void map(V3FMap fn, float[] out) {
-                vg();
+                v();
                 if (out.length < size) throw new IllegalArgumentException("out too small: " + out.length + " < " + size);
                 VectorSpecies<Float> S = FloatVector.SPECIES_PREFERRED;
                 int n = size, L = S.length(), i = 0;
@@ -954,7 +954,7 @@ public final class FastLoc {
                 }
             }
             public void map(V3FMap fx, V3FMap fy, V3FMap fz, List out) {
-                vg(); out.size(size);
+                v(); out.size(size);
                 VectorSpecies<Float> S = FloatVector.SPECIES_PREFERRED;
                 int n = size, L = S.length(), i = 0;
                 float[] X = out.xs, Y = out.ys, Z = out.zs;
@@ -970,7 +970,7 @@ public final class FastLoc {
             }
             public void fill(V3FMap fx, V3FMap fy, V3FMap fz) { map(fx, fy, fz, this); }
             public float sum(V3FMap fn) {
-                vg();
+                v();
                 VectorSpecies<Float> S = FloatVector.SPECIES_PREFERRED;
                 FloatVector acc = FloatVector.zero(S);
                 int n = size, L = S.length();
@@ -982,7 +982,7 @@ public final class FastLoc {
                 return acc.reduceLanes(VectorOperators.ADD);
             }
             public float max(V3FMap fn) {
-                vg();
+                v();
                 VectorSpecies<Float> S = FloatVector.SPECIES_PREFERRED;
                 FloatVector acc = FloatVector.broadcast(S, Float.NEGATIVE_INFINITY);
                 int n = size, L = S.length();
@@ -994,7 +994,7 @@ public final class FastLoc {
                 return acc.reduceLanes(VectorOperators.MAX);
             }
             public float min(V3FMap fn) {
-                vg();
+                v();
                 VectorSpecies<Float> S = FloatVector.SPECIES_PREFERRED;
                 FloatVector acc = FloatVector.broadcast(S, Float.POSITIVE_INFINITY);
                 int n = size, L = S.length();
@@ -1006,7 +1006,7 @@ public final class FastLoc {
                 return acc.reduceLanes(VectorOperators.MIN);
             }
             public int argMax(V3FMap fn) {
-                vg();
+                v();
                 VectorSpecies<Float> S = FloatVector.SPECIES_PREFERRED;
                 int n = size;
                 if (n == 0) return -1;
@@ -1027,7 +1027,7 @@ public final class FastLoc {
                 return (int) bi;
             }
             public int argMin(V3FMap fn) {
-                vg();
+                v();
                 VectorSpecies<Float> S = FloatVector.SPECIES_PREFERRED;
                 int n = size;
                 if (n == 0) return -1;
@@ -1048,7 +1048,7 @@ public final class FastLoc {
                 return (int) bi;
             }
             public int count(V3FPred pred) {
-                vg();
+                v();
                 VectorSpecies<Float> S = FloatVector.SPECIES_PREFERRED;
                 int c = 0;
                 for (int i = 0; i < size; i += S.length()) {
@@ -1058,7 +1058,7 @@ public final class FastLoc {
                 return c;
             }
             public int cull(V3FPred pred, int[] out) {
-                vg();
+                v();
                 if (out.length < size) throw new IllegalArgumentException("out too small: " + out.length + " < " + size);
                 VectorSpecies<Float> S = FloatVector.SPECIES_PREFERRED;
                 int n = size, c = 0;
@@ -1070,7 +1070,7 @@ public final class FastLoc {
                 }
                 return c;
             }
-            static void vg() { if (!Platform.VECTOR_OK) throw new IllegalStateException("jdk.incubator.vector absent"); }
+            static void v() { if (!Platform.VECTOR_OK) throw new IllegalStateException("jdk.incubator.vector absent"); }
             @FunctionalInterface
             public static interface Op { void apply(Mutable m); }
             @FunctionalInterface

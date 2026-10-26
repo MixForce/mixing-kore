@@ -6,7 +6,7 @@ plugins {
 }
 
 base {
-    archivesName = "MixingKore"
+    archivesName = "mixing-kore"
 }
 
 version = libs.versions.mod.version.get()
@@ -62,7 +62,9 @@ tasks.register<JavaExec>("MathA") {
 tasks.jar {
     val projectName = project.name
     inputs.property("projectName", projectName)
-    from(files(rootProject.file("LICENSE"), rootProject.file("NOTICE")))
+    from(rootProject.file("NOTICE")) { into("META-INF") }
+    from(rootProject.file("LICENSES")) { into("META-INF/licenses") }
+    from(rootProject.file("LICENSES/LGPL-3.0-or-later.txt")) { into("META-INF"); rename { "LICENSE" } }
 }
 tasks.withType<Javadoc> {
     val v = options as StandardJavadocDocletOptions

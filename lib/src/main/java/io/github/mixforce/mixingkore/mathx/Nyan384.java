@@ -1,6 +1,6 @@
-// <editor-fold defaultstate="collapsed" desc="// SPDX: LGPL-3.0-or-later | Copyright (c) 2026 MixForce">
+// <editor-fold defaultstate="collapsed" desc="// LGPL-3.0-or-later | SPDX-FileCopyrightText: 2026 MixForce">
 /* SPDX-License-Identifier: LGPL-3.0-or-later */
-/* Copyright (c) 2026 MixForce */
+/* SPDX-FileCopyrightText: 2026 MixForce */
 // </editor-fold>
 package io.github.mixforce.mixingkore.mathx;
 
@@ -20,8 +20,7 @@ public final class Nyan384 implements RandomGenerator.SplittableGenerator {
     public Nyan384(long lo, long hi) { this(lo, hi, 0L, 0L); }
 
     static final long C1 = 0x300AD87B6FCBDA47L, C2 = 0xB10B6D24D3143C7FL, C3 = 0xB630487DA7E50FBFL, KT = 0x415D4F6036E7610BL;
-    static final long K0 = 0x8CB3F299AB1A985DL, K1 = 0x1B671734CD36A1E7L, K2 = 0x14EE82EC222E3D4DL, K3 = 0x5DF9D97160135825L;
-    static final long K4 = 0x7D30A7959E2CA223L, K5 = 0x6EA44F948450AC6DL, K6 = 0x37E532043257C55DL, K7 = 0x2AA7B08E04A6B34FL;
+    static final long K0 = 0x8CB3F299AB1A985DL, K1 = 0x1B671734CD36A1E7L, K2 = 0x14EE82EC222E3D4DL, K3 = 0x5DF9D97160135825L, K4 = 0x7D30A7959E2CA223L, K5 = 0x6EA44F948450AC6DL, K6 = 0x37E532043257C55DL, K7 = 0x2AA7B08E04A6B34FL;
     static final long SA = 0x003877BAB47AAFF3L, SB = 0xEA9A9815A828B6FBL, SC = 0x8546B52929DA1390L, SD = 0x030112EAAE97ECD7L;
     static final long PHI = 0x9E3779B97F4A7C15L;
 
