@@ -25,7 +25,7 @@
 
 ```groovy
  dependencies {
-     implementation "io.github.mixforce:mixing-kore:1.0.6"
+     implementation "io.github.mixforce:mixing-kore:1.0.7"
  }
 ```
 

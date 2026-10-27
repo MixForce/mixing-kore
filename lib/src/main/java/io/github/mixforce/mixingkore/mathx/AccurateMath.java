@@ -1,4 +1,4 @@
-// <editor-fold defaultstate="collapsed" desc="// MIT OR Apache-2.0 WITH LLVM-exception | SPDX-FileCopyrightText: 1999-2026 Arm Limited, 2026 MixForce">
+// <editor-fold defaultstate="collapsed" desc="// LGPL-3.0-or-later AND Apache-2.0 WITH LLVM-exception | Copyright (c) 1999-2026 Arm Limited, 2026 MixForce">
 /*
  * SPDX-License-Identifier: LGPL-3.0-or-later AND Apache-2.0 WITH LLVM-exception
  * SPDX-FileCopyrightText: 2026 MixForce

@@ -66,6 +66,9 @@ tasks.jar {
     from(rootProject.file("LICENSES")) { into("META-INF/licenses") }
     from(rootProject.file("LICENSES/LGPL-3.0-or-later.txt")) { into("META-INF"); rename { "LICENSE" } }
 }
+tasks.processResources {
+    exclude("**/*.license")
+}
 tasks.withType<Javadoc> {
     val v = options as StandardJavadocDocletOptions
     v.encoding = "UTF-8"; v.addStringOption("Xdoclint:none", "-quiet"); v.addStringOption("-add-modules", "jdk.incubator.vector")

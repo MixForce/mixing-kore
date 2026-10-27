@@ -1,4 +1,4 @@
-// <editor-fold defaultstate="collapsed" desc="// LGPL-3.0-or-later | SPDX-FileCopyrightText: 2026 MixForce">
+// <editor-fold defaultstate="collapsed" desc="// LGPL-3.0-or-later | Copyright (c) 2026 MixForce">
 /* SPDX-License-Identifier: LGPL-3.0-or-later */
 /* SPDX-FileCopyrightText: 2026 MixForce */
 // </editor-fold>
